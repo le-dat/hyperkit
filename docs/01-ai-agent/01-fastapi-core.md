@@ -8,7 +8,7 @@ FastAPI application with:
 - SQLAlchemy async models for chat history
 - CORS middleware
 
-> **Prerequisite**: [Step 00 — Infrastructure](../infrastructure/01-infrastructure.md)
+> **Prerequisite**: [Step 00 — Infrastructure](../00-infrastructure/01-infrastructure.md)
 
 ---
 

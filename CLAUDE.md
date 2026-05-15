@@ -18,10 +18,11 @@ ai-chatbot/
 ├── frontend/          # Next.js App Router
 ├── backend/           # FastAPI + LangGraph + ARQ
 ├── docs/              # 17-step implementation roadmap
-│   ├── ai-agent/      # Steps 01–08: FastAPI, Clerk, LangGraph, worker, guardrails, SSE, MCP, observability
-│   ├── frontend/       # Steps 09–12: Next.js, Clerk integration, chat UI, history
-│   ├── devops/        # Steps 13–16: Docker, env, CI/CD, deployment
-│   └── infrastructure/ # Step 00: PostgreSQL + Redis Docker setup
+│   ├── 00-infrastructure/ # Step 00: PostgreSQL + Redis Docker setup
+│   ├── 01-ai-agent/      # Steps 01–08: FastAPI, Clerk, LangGraph, worker, guardrails, SSE, MCP, observability
+│   ├── 02-frontend/      # Steps 09–12: Next.js, Clerk integration, chat UI, history
+│   ├── 03-devops/        # Steps 13–16: Docker, env, CI/CD, deployment
+│   └── 04-security/      # Security hardening
 ```
 
 ## Commands
@@ -64,9 +65,11 @@ Key identifiers: `conversation_id` (PostgreSQL), `turn_id` (Redis, 1h TTL). Lang
 ## Implementation Roadmap
 
 Follow the numbered steps in `docs/` exactly — they are ordered dependencies:
-- Steps 00–08: Infrastructure → FastAPI core → Clerk Auth → LangGraph → Worker → Guardrails → SSE → MCP → Observability
-- Steps 09–12: Next.js frontend (setup → Clerk auth → chat → history)
-- Steps 13–16: DevOps (Docker → env → CI/CD → deployment)
+- 00-infrastructure: PostgreSQL + Redis (run FIRST)
+- 01-ai-agent (Steps 01–08): FastAPI core → Clerk Auth → LangGraph → Worker → Guardrails → SSE → MCP → Observability
+- 02-frontend (Steps 09–12): Next.js frontend (setup → Clerk auth → chat → history)
+- 03-devops (Steps 13–16): Docker → env → CI/CD → deployment
+- 04-security: Security hardening (do after backend is complete)
 
 Infrastructure step (00) creates `docker-compose.infra.yml` — run this first before starting any service.
 

@@ -43,32 +43,32 @@ Follow this step-by-step roadmap in the exact numbered order.
 ### Phase 1 — Infrastructure & Backend Core
 | Step | File | Service | What |
 |------|------|---------|------|
-| 00 | [Infrastructure](docs/infrastructure/01-infrastructure.md) | Infra | PostgreSQL + Redis: Docker setup & DB schema |
-| 01 | [FastAPI Core](docs/ai-agent/01-fastapi-core.md) | **Python** | FastAPI app factory, config, SQLAlchemy models |
-| 02 | [Backend Auth](docs/ai-agent/02-auth.md) | **Python** | Clerk JWT verification, JWKS caching |
-| 03 | [LangGraph Agent](docs/ai-agent/03-langgraph-agent.md) | **Python** | LangGraph graph, 3-tier memory, checkpointer |
-| 04 | [Worker & Router](docs/ai-agent/04-worker-llm.md) | **Python** | ARQ Worker + Multi-LLM router + agent endpoints |
-| 05 | [Guardrails](docs/ai-agent/05-guardrails.md) | **Python** | Input, Output, Tool, Budget guards |
-| 06 | [SSE & History](docs/ai-agent/06-sse-history.md) | **Python** | SSE router (PubSub → browser) + History API |
-| 07 | [MCP Integration](docs/ai-agent/07-mcp.md) | **Python** | MCP registry, transport, dynamic tool binding |
-| 08 | [Observability](docs/ai-agent/08-observability.md) | **Python** | structlog, LangSmith, Prometheus, RAGAS eval |
+| 00 | [Infrastructure](docs/00-infrastructure/01-infrastructure.md) | Infra | PostgreSQL + Redis: Docker setup & DB schema |
+| 01 | [FastAPI Core](docs/01-ai-agent/01-fastapi-core.md) | **Python** | FastAPI app factory, config, SQLAlchemy models |
+| 02 | [Backend Auth](docs/01-ai-agent/02-auth.md) | **Python** | Clerk JWT verification, JWKS caching |
+| 03 | [LangGraph Agent](docs/01-ai-agent/03-langgraph-agent.md) | **Python** | LangGraph graph, 3-tier memory, checkpointer |
+| 04 | [Worker & Router](docs/01-ai-agent/04-worker-llm.md) | **Python** | ARQ Worker + Multi-LLM router + agent endpoints |
+| 05 | [Guardrails](docs/01-ai-agent/05-guardrails.md) | **Python** | Input, Output, Tool, Budget guards |
+| 06 | [SSE & History](docs/01-ai-agent/06-sse-history.md) | **Python** | SSE router (PubSub → browser) + History API |
+| 07 | [MCP Integration](docs/01-ai-agent/07-mcp.md) | **Python** | MCP registry, transport, dynamic tool binding |
+| 08 | [Observability](docs/01-ai-agent/08-observability.md) | **Python** | structlog, LangSmith, Prometheus, RAGAS eval |
 
 ### Phase 2 — Next.js Frontend (`frontend/`)
 | Step | File | What |
 |------|------|------|
-| 09 | [Frontend Setup](docs/frontend/01-setup.md) | Next.js boilerplate, Route Handler proxies |
-| 10 | [Clerk Integration](docs/frontend/02-auth.md) | Login/Register pages via Clerk SDK |
-| 11 | [Chat UI](docs/frontend/03-chat.md) | Chat UI, useChat hook, SSE streaming, human gate |
-| 12 | [History Sidebar](docs/frontend/04-history.md) | History sidebar, useHistory hook, chat page assembly |
+| 09 | [Frontend Setup](docs/02-frontend/01-setup.md) | Next.js boilerplate, Route Handler proxies |
+| 10 | [Clerk Integration](docs/02-frontend/02-auth.md) | Login/Register pages via Clerk SDK |
+| 11 | [Chat UI](docs/02-frontend/03-chat.md) | Chat UI, useChat hook, SSE streaming, human gate |
+| 12 | [History Sidebar](docs/02-frontend/04-history.md) | History sidebar, useHistory hook, chat page assembly |
 
 ### Phase 3 — DevOps & Security
 | Step | File | What |
 |------|------|------|
-| 13 | [Dockerization](docs/devops/01-docker.md) | Docker Compose: AI Backend + Redis + Postgres |
-| 14 | [Env Management](docs/devops/02-env.md) | Env var management: separate `.env` per service |
-| 15 | [CI/CD Pipeline](docs/devops/03-cicd.md) | GitHub Actions: CI pipelines + RAGAS gate |
-| 16 | [Deployment](docs/devops/04-deploy.md) | Production: SSL, health checks, **Hybrid (Vercel)** |
-| 17 | [Security](docs/security/01-security.md) | Hardening, Clerk JWT verification, audit log |
+| 13 | [Dockerization](docs/03-devops/01-docker.md) | Docker Compose: AI Backend + Redis + Postgres |
+| 14 | [Env Management](docs/03-devops/02-env.md) | Env var management: separate `.env` per service |
+| 15 | [CI/CD Pipeline](docs/03-devops/03-cicd.md) | GitHub Actions: CI pipelines + RAGAS gate |
+| 16 | [Deployment](docs/03-devops/04-deploy.md) | Production: SSL, health checks, **Hybrid (Vercel)** |
+| 17 | [Security](docs/04-security/01-security.md) | Hardening, Clerk JWT verification, audit log |
 
 ---
 

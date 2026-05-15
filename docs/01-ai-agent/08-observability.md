@@ -215,4 +215,4 @@ asyncio.run(run_ragas_eval())
 ```
 
 > **Prerequisite**: [Step 07 — MCP Integration](./07-mcp.md)
-> ✅ **AI Agent Backend complete!** → Next: [Step 01 — Frontend Setup](../frontend/01-setup.md)
+> ✅ **AI Agent Backend complete!** → Next: [Step 09 — Frontend Setup](../02-frontend/01-setup.md)
