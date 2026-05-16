@@ -36,6 +36,13 @@ prod-up:
 prod-down:
 	$(DOCKER_PROD) down
 
+prod-pull:
+	$(DOCKER_PROD) pull
+
+prod-restart:
+	$(DOCKER_PROD) down
+	$(DOCKER_PROD) up -d
+
 prod-status:
 	$(DOCKER_PROD) ps
 
