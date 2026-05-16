@@ -1,100 +1,177 @@
-# AI Chatbot Agent — Production Documentation
+# AI Chatbot
 
-The AI Chatbot Agent system is designed with a **Hybrid (Vercel + VPS)** architecture, optimized for performance, security, and observability.
+A full-stack AI chatbot with a **Hybrid (Vercel + VPS)** architecture. Real-time streaming chat via SSE, multi-tenant isolation via `clerk_user_id`, a LangGraph-based agent with 3-tier memory, and MCP tool integration.
 
-This documentation provides an architectural overview and a detailed step-by-step implementation roadmap.
-
----
-
-## 🏗 System Architecture (Vercel + VPS Hybrid)
+## System Architecture
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│              Next.js Frontend (Vercel)                   │
-│  Chat UI  ←→  /api/chat proxy  ←→  /api/sse/[turnId]    │
-│  History Sidebar  ←→  /api/history proxy                  │
-│  Auth (Clerk SDK) ←→  Clerk Managed Dashboard            │
-└──────────────────────────────────────────────────────────┘
-         │ Clerk JWT (Short-lived)         │ SSE stream (Proxied)
-         ▼                                 ▼
-┌──────────────────────────────────────────────────────────┐
-│                    VPS (Ubuntu / Docker)                 │
-│                                                          │
-│              ┌──────────────────────────┐                │
-│              │   FastAPI AI Backend     │                │
-│              │   POST /agent/invoke     │                │
-│              │   GET  /sse/{turn_id}    │                │
-│              │   GET  /history          │                │
-│              └────────────┬─────────────┘                │
-│                           │                              │
-│         ┌─────────────────┴─────────────────┐            │
-│         │                 │                 │            │
-│      Postgres           Redis            Clerk API       │
-│      (chat_db)        (session)        (JWKS Verify)     │
-└──────────────────────────────────────────────────────────┘
+Browser
+  │
+  │ HTTP POST /api/chat
+  ▼
+┌─────────────────────────┐
+│   Next.js (Vercel)       │
+│   Route Handler          │
+│   /app/api/chat/route.ts │
+└───────────┬─────────────┘
+            │ HTTP POST /agent/invoke (Bearer JWT)
+            ▼
+┌─────────────────────────┐
+│   FastAPI (VPS)          │
+│   ai-server/             │
+│   ┌─────────────────┐    │
+│   │ Auth Middleware  │    │  Verifies Clerk JWT via JWKS
+│   │ (clerk.py)       │    │
+│   └─────────────────┘    │
+│   ┌─────────────────┐    │
+│   │ LangGraph Agent │    │  3-tier memory + MCP tools
+│   │ (agent/)        │    │
+│   └────────┬────────┘    │
+│            │               │
+│   ┌────────▼────────┐    │
+│   │ ARQ Worker      │    │  Enqueued task, publishes tokens
+│   │ (worker.py)     │    │  via Redis PubSub
+│   └────────┬────────┘    │
+└────────────┼─────────────┘
+             │                  ┌─────────────────┐
+             │ Redis            │ PostgreSQL       │
+             │ (session/TTL)    │ (chat_history)   │
+             ▼                  └─────────────────┘
+┌─────────────────────────┐
+│   SSE Response         │
+│   /api/sse/[turnId]     │
+└───────────┬─────────────┘
+            │ EventSource stream
+            ▼
+          Browser ◄──── Tokens stream in real-time
 ```
 
----
+## Architecture Flow
 
-## 🗺 Implementation Roadmap
+1. **Browser** sends message → `POST /api/chat` (Next.js Route Handler)
+2. **Next.js** proxies to `POST /agent/invoke` (FastAPI, Bearer JWT)
+3. **FastAPI** writes Redis session + enqueues ARQ task, returns `{ turn_id, sse_url }`
+4. **Browser** opens `EventSource` → `/api/sse/[turnId]` (Next.js SSE proxy)
+5. **FastAPI** SSE subscribes Redis PubSub `sse:{turn_id}`
+6. **ARQ Worker** runs LangGraph → publishes tokens → SSE → Browser
 
-Follow this step-by-step roadmap in the exact numbered order.
+## Key Identifiers
 
-### Phase 1 — Infrastructure & Backend Core
-| Step | File | Service | What |
-|------|------|---------|------|
-| 00 | [Infrastructure](docs/00-infrastructure/01-infrastructure.md) | Infra | PostgreSQL + Redis: Docker setup & DB schema |
-| 01 | [FastAPI Core](docs/01-ai-server/01-fastapi-core.md) | **Python** | FastAPI app factory, config, SQLAlchemy models |
-| 02 | [Backend Auth](docs/01-ai-server/02-auth.md) | **Python** | Clerk JWT verification, JWKS caching |
-| 03 | [LangGraph Agent](docs/01-ai-server/03-langgraph-agent.md) | **Python** | LangGraph graph, 3-tier memory, checkpointer |
-| 04 | [Worker & Router](docs/01-ai-server/04-worker-llm.md) | **Python** | ARQ Worker + Multi-LLM router + agent endpoints |
-| 05 | [Guardrails](docs/01-ai-server/05-guardrails.md) | **Python** | Input, Output, Tool, Budget guards |
-| 06 | [SSE & History](docs/01-ai-server/06-sse-history.md) | **Python** | SSE router (PubSub → browser) + History API |
-| 07 | [MCP Integration](docs/01-ai-server/07-mcp.md) | **Python** | MCP registry, transport, dynamic tool binding |
-| 08 | [Observability](docs/01-ai-server/08-observability.md) | **Python** | structlog, LangSmith, Prometheus, RAGAS eval |
+| Identifier | Storage | TTL | Purpose |
+| --- | --- | --- | --- |
+| `conversation_id` | PostgreSQL | Permanent | Chat history persistence |
+| `turn_id` | Redis | 1 hour | Real-time streaming session |
 
-### Phase 2 — Next.js Frontend (`frontend/`)
-| Step | File | What |
-|------|------|------|
-| 09 | [Frontend Setup](docs/02-frontend/01-setup.md) | Next.js boilerplate, Route Handler proxies |
-| 10 | [Clerk Integration](docs/02-frontend/02-auth.md) | Login/Register pages via Clerk SDK |
-| 11 | [Chat UI](docs/02-frontend/03-chat.md) | Chat UI, useChat hook, SSE streaming, human gate |
-| 12 | [History Sidebar](docs/02-frontend/04-history.md) | History sidebar, useHistory hook, chat page assembly |
+## Two Services
 
-### Phase 3 — DevOps & Security
-| Step | File | What |
-|------|------|------|
-| 13 | [Dockerization](docs/03-devops/01-docker.md) | Docker Compose: AI Backend + Redis + Postgres |
-| 14 | [Env Management](docs/03-devops/02-env.md) | Env var management: separate `.env` per service |
-| 15 | [CI/CD Pipeline](docs/03-devops/03-cicd.md) | GitHub Actions: CI pipelines + RAGAS gate |
-| 16 | [Deployment](docs/03-devops/04-deploy.md) | Production: SSL, health checks, **Hybrid (Vercel)** |
-| 17 | [Security](docs/04-security/01-security.md) | Hardening, Clerk JWT verification, audit log |
+### Frontend — Next.js 16 (TypeScript)
 
----
+- Served on **Vercel**
+- Calls FastAPI through Route Handlers
+- Next.js 16 has breaking changes — read `frontend/AGENTS.md` before writing frontend code
 
-## 🔄 Technical Flow Details
+### AI Backend — FastAPI (Python)
 
-### 1. Request Flow (Frontend → Backend)
-1.  **User types** → POST `/api/chat` (Next.js Route Handler).
-2.  **Route Handler fetches Clerk Token** → POST `/agent/invoke` (FastAPI) with `Authorization: Bearer <clerk_jwt>`.
-3.  **FastAPI verifies JWT** using Clerk JWKS + writes Redis session + enqueues ARQ task.
-4.  **FastAPI returns** `{ turn_id, sse_url }`.
-5.  **Browser opens EventSource** → `/api/sse/[turnId]` (Next.js proxy).
-6.  **FastAPI SSE** subscribes Redis PubSub `sse:{turn_id}`.
-7.  **ARQ Worker** runs LangGraph → publishes tokens → SSE → Browser.
+- Runs on **VPS** as a Docker container
+- ARQ worker for async task processing
+- Auth via **Clerk** — JWT verified in FastAPI via JWKS
 
-### 2. State Management
-- **`conversation_id`**: Unique conversation identifier (PostgreSQL).
-- **`turn_id`**: Current response turn identifier (Redis TTL 1h).
-- **Checkpointing**: Uses `PostgresSaver` for graph state persistence.
+## 3-Tier Memory
 
----
+| Tier | Storage | Purpose |
+| --- | --- | --- |
+| 1 | PostgreSQL (last N messages) | Working memory |
+| 2 | Redis (session summary) | Session memory |
+| 3 | Vector store | Long-term memory |
 
-## 🚀 Key Highlights
-- **Tenant Isolation**: Data separation via `clerk_user_id`.
-- **Reliability**: Fallback LLM mechanism and Circuit Breakers.
-- **Observability**: Detailed tracing with LangSmith and JSON logs via structlog.
-- **Security**: Managed authentication via Clerk and Guardrails protection.
+## Multi-Tenant Isolation
 
----
-*Refer to detailed documentation in each corresponding file in the Roadmap table above.*
+All queries are scoped by `user_id` — the Clerk `sub` claim extracted from the JWT.
+
+## Quick Start
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Node.js 20+
+- Python 3.11+
+- Clerk account (<https://clerk.com>)
+
+### Infrastructure (PostgreSQL + Redis)
+
+```bash
+docker compose -f docker-compose.infra.yml up -d
+```
+
+### AI Server (FastAPI)
+
+```bash
+cd ai-server
+source .venv/bin/activate
+python -m uvicorn main:app --reload --port 8000
+```
+
+### Worker (ARQ)
+
+```bash
+cd ai-server
+source .venv/bin/activate
+python -m arq ai_server.worker.WorkerSettings
+```
+
+### Frontend (Next.js)
+
+```bash
+cd frontend
+pnpm install
+pnpm run dev
+```
+
+## Environment Variables
+
+### AI Server (`ai-server/.env`)
+
+| Variable | Description |
+| --- | --- |
+| `CLERK_FRONTEND_API` | Clerk frontend API (e.g. `your-app.clerk.accounts.dev`) |
+| `CLERK_ISSUER_URL` | Full issuer URL (e.g. `https://your-domain.clerk.accounts.com`) |
+| `CLERK_AUDIENCE` | Token audience (use your frontend API URL, not `"clerk"`) |
+| `CHAT_DATABASE_URL` | PostgreSQL connection string |
+| `REDIS_URL` | Redis connection string |
+| `BACKEND_URL` | FastAPI server URL (no `NEXT_PUBLIC_` prefix) |
+
+> **Note:** All FastAPI calls go through Next.js Route Handlers — the browser never calls FastAPI directly.
+
+## Directory Structure
+
+```
+ai-chatbot/
+├── ai-server/           # FastAPI + LangGraph + ARQ worker
+│   ├── auth/            # Clerk JWT verification
+│   ├── core/            # Exceptions
+│   ├── db/              # SQLAlchemy models + chat history queries
+│   ├── middleware/      # Structlog request logging
+│   ├── routers/         # Route modules
+│   ├── main.py          # FastAPI app factory + lifespan
+│   └── config.py        # Pydantic Settings
+├── frontend/            # Next.js App Router
+│   ├── app/             # Next.js 16 App Router pages
+│   ├── AGENTS.md        # Next.js 16 breaking changes warning
+│   └── CLAUDE.md        # Delegates to root CLAUDE.md
+└── docs/                # 17-step implementation roadmap
+    ├── 00-infrastructure/
+    ├── 01-ai-server/
+    ├── 02-frontend/
+    ├── 03-devops/
+    └── 04-security/
+```
+
+## Implementation Roadmap
+
+Follow numbered steps in `docs/` in order — they have dependencies:
+
+1. `docs/00-infrastructure/` — Docker + PostgreSQL + Redis (run FIRST)
+2. `docs/01-ai-server/` Steps 01–08 — FastAPI → Auth → LangGraph → Worker → Guardrails → SSE → MCP → Observability
+3. `docs/02-frontend/` Steps 09–12 — Next.js setup → Clerk auth → chat UI → history
+4. `docs/03-devops/` Steps 13–16 — Docker → env → CI/CD → deployment
+5. `docs/04-security/` Step 17 — Security hardening (do after backend is complete)
