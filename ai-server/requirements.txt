@@ -1,0 +1,22 @@
+# ai-server/requirements.txt
+fastapi
+uvicorn[standard]
+sse-starlette
+redis
+arq
+sqlalchemy[asyncio]
+asyncpg
+httpx
+pydantic-settings
+python-dotenv
+tenacity
+pybreaker
+langchain-openai
+langchain-anthropic
+langgraph
+langsmith
+structlog
+prometheus-client
+mcp
+python-jose[cryptography]
+pydantic[email]
