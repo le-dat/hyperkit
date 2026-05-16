@@ -36,7 +36,7 @@ jobs:
       - name: Build and push Backend image
         uses: docker/build-push-action@v5
         with:
-          context: ./ai-server
+          context: ./src/server
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest
           labels: ${{ steps.meta.outputs.labels }}
@@ -64,7 +64,7 @@ jobs:
             # Login to GitHub Container Registry using the ephemeral token
             echo $GHCR_PAT | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            cd /home/moltbot/server/ai-server
+            cd /home/moltbot/server/src/server
             git fetch origin
             git pull origin main
 

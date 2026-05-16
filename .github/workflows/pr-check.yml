@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./ai-server
+        working-directory: ./src/server
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./frontend
+        working-directory: ./src/frontend
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -68,6 +68,6 @@ jobs:
       - name: Dry-run Backend Docker Build
         uses: docker/build-push-action@v5
         with:
-          context: ./ai-server
+          context: ./src/server
           push: false
           tags: backend-test:latest
