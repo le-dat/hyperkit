@@ -20,19 +20,24 @@ ai-chatbot/
 ```env
 # .env (root — read by docker-compose.yml)
 # ── PostgreSQL ──────────────────────────────────────────────────────────
+# REQUIRED — containers fail to start if unset
 POSTGRES_USER=chatbot
-POSTGRES_PASSWORD=change-me-in-production
+POSTGRES_PASSWORD=<strong-password-here>
 POSTGRES_DB=chatbot
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 
 # ── Redis ───────────────────────────────────────────────────────────────
-REDIS_URL=redis://localhost:6379
+# REQUIRED — containers fail to start if unset
+REDIS_PASSWORD=<strong-redis-password>
+REDIS_URL=redis://localhost:6379?password=<strong-redis-password>
 
 # ── Clerk (Production keys in root for compose) ───────────────────────
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 ```
+
+> ⚠️ **Never commit `.env` files.** Use a secrets manager (e.g., Doppler, Vault) for production.
 
 ---
 
@@ -49,7 +54,7 @@ CLERK_FRONTEND_API=your-app.clerk.accounts.dev
 CLERK_SECRET_KEY=sk_test_...
 
 # ── Database (separate chat_db) ──────────────────────────────────────────
-DATABASE_URL=postgresql+asyncpg://chatbot:change-me@localhost:5432/chat_db
+DATABASE_URL=postgresql+asyncpg://chatbot:<password>@localhost:5432/chat_db
 
 # ── Redis ────────────────────────────────────────────────────────────────
 REDIS_URL=redis://localhost:6379

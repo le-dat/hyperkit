@@ -52,8 +52,8 @@ class Settings(BaseSettings):
     clerk_frontend_api: str = ""       # e.g. "your-app.clerk.accounts.dev"
     clerk_secret_key: str = ""         # for audit signing
 
-    # Database (chat_db)
-    database_url: str = "postgresql+asyncpg://chatbot:chatbot_pass@localhost:5432/chat_db"
+    # Database (chat_db) — password must be provided via environment variable
+    database_url: str = ""  # e.g. postgresql+asyncpg://chatbot:<password>@localhost:5432/chat_db
 
     # Redis
     redis_url: str = "redis://localhost:6379"
@@ -261,8 +261,8 @@ async def health(request: "Request"):
 # ai-server/.env
 CLERK_FRONTEND_API=your-app.clerk.accounts.dev
 CLERK_SECRET_KEY=sk_test_...
-DATABASE_URL=postgresql+asyncpg://chatbot:chatbot_pass@localhost:5432/chat_db
-REDIS_URL=redis://localhost:6379
+DATABASE_URL=postgresql+asyncpg://chatbot:<password>@localhost:5432/chat_db
+REDIS_URL=redis://localhost:6379?password=<redis-password>
 
 LLM_PROVIDER=openai
 OPENAI_API_KEY=sk-...

@@ -19,9 +19,15 @@ services:
     container_name: ai_chatbot_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-chatbot}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chatbot_pass}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: ${POSTGRES_DB:-chatbot}
+      POSTGRES_HOST_AUTH_METHOD: md5
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c max_connections=100
+      -c work_mem=16MB
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -30,6 +36,17 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - chatbot_net
 
@@ -37,7 +54,12 @@ services:
     image: redis:7-alpine
     container_name: ai_chatbot_redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - redis_data:/data
     healthcheck:
@@ -45,6 +67,17 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - chatbot_net
 
@@ -55,9 +88,8 @@ volumes:
 networks:
   chatbot_net:
     name: chatbot_network
-    driver: bridge
 
-## Step 1.2 — docker-compose.override.yml (Local only)
+## Step 1.1 — docker-compose.override.yml (Local only)
 
 ```yaml
 # docker-compose.override.yml
@@ -66,12 +98,14 @@ version: "3.9"
 services:
   postgres:
     ports:
-      - "5432:5432" # Expose for Local DB tools
+      - "127.0.0.1:5432:5432" # Expose for Local DB tools (localhost only)
 
   redis:
     ports:
-      - "6379:6379" # Expose for Local Redis tools
+      - "127.0.0.1:6379:6379" # Expose for Local Redis tools (localhost only)
 ```
+
+> ⚠️ **Security**: Ports are bound to `127.0.0.1` only — not exposed to the internet.
 
 ---
 
@@ -135,15 +169,21 @@ CREATE INDEX IF NOT EXISTS idx_conversations_user    ON conversations(user_id, u
 
 > ⚠️ **Note**: Run these commands from the `ai-server` directory.
 
-### For Local Development
-Simply run (Docker will automatically use `docker-compose.yml` + `docker-compose.override.yml`):
+### Using Makefile (Recommended)
+You can use the provided `Makefile` in the `ai-server` directory for shortcuts:
+
+*   **Dev (Local)**: `make dev-start` / `make dev-stop`
+*   **Prod (VPS)**: `make prod-start` / `make prod-stop`
+*   **Status**: `make status`
+
+### Manual Commands
+**For Local Development** (Docker will automatically use `docker-compose.yml` + `docker-compose.override.yml`):
 ```bash
 cd ai-server
 docker compose up -d
 ```
 
-### For VPS Deployment
-Ensure ONLY `docker-compose.yml` is present (or specify it explicitly):
+**For VPS Deployment** (Ensure ONLY `docker-compose.yml` is present, or specify it explicitly):
 ```bash
 cd ai-server
 docker compose -f docker-compose.yml up -d
@@ -163,25 +203,31 @@ redis-cli ping
 
 ---
 
-## Step 1.7 — .env (shared infra variables)
+## Step 1.4 — .env (shared infra variables)
 
 Located at `ai-server/.env`:
 
 ```env
 # .env (shared across all backend services)
+# REQUIRED — no defaults, containers will fail to start if unset
 POSTGRES_USER=chatbot
-POSTGRES_PASSWORD=chatbot_pass
+POSTGRES_PASSWORD=<strong-password-here>
 POSTGRES_DB=chatbot
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 
-# FastAPI Database Connection
-CHAT_DATABASE_URL=postgresql+asyncpg://chatbot:chatbot_pass@localhost:5432/chat_db
+# REQUIRED — Redis authentication
+REDIS_PASSWORD=<strong-redis-password>
 
-REDIS_URL=redis://localhost:6379
+# FastAPI Database Connection (uses POSTGRES_PASSWORD)
+CHAT_DATABASE_URL=postgresql+asyncpg://chatbot:<strong-password>@localhost:5432/chat_db
+
+REDIS_URL=redis://localhost:6379?password=<strong-redis-password>
 REDIS_HOST=localhost
 REDIS_PORT=6379
 ```
+
+> ⚠️ **Never commit `.env` to git.** Use a secrets manager (e.g., Doppler, Vault) for production.
 
 ---
 
