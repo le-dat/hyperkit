@@ -15,40 +15,37 @@ Production-grade observability:
 
 ```
 ai-server/
+├── middleware/
+│   └── logging.py     ← Structured logging middleware
+├── routers/
+│   └── system.py      ← Health check & metrics
 └── observability/
-    ├── logger.py     ← structlog JSON
     ├── langsmith.py  ← @traceable + cost
     ├── metrics.py    ← Prometheus + alert thresholds
     └── eval.py       ← RAGAS + LLM-as-judge
-tests/
-└── golden_dataset.json  ← 100 Q&A pairs for CI gate
 ```
 
 ---
 
 ## Step 8.1 — Structured Logger
 
+The logging configuration is now handled in `main.py` and the middleware in `middleware/logging.py`.
+
 ```python
-# ai-server/observability/logger.py
-import structlog, logging
+# ai-server/middleware/logging.py
+import time
+import uuid
+import structlog
+from fastapi import Request
 
-structlog.configure(
-    processors=[
-        structlog.contextvars.merge_contextvars,
-        structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso", utc=True),
-        structlog.processors.JSONRenderer(),
-    ],
-    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
-    logger_factory=structlog.PrintLoggerFactory(),  # stdout → ELK
-)
+logger = structlog.get_logger()
 
-log = structlog.get_logger()
-
-# Usage:
-# log.info("tool_call", tool="create_invoice", user="u1", duration_ms=234, status="ok")
-# log.error("agent_error", error="ValidationError", step="extract", retry=2)
-# log.info("token_usage", tokens=1200, cost_usd=0.002, model="gpt-4o")
+async def log_requests(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(request_id=request_id)
+    
+    # ... (log request started, process request, log finished with duration)
 ```
 
 ---

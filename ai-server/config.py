@@ -1,4 +1,4 @@
-# ai-server/config.py
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings
 
 
@@ -6,12 +6,17 @@ class Settings(BaseSettings):
     # Auth (Clerk)
     clerk_frontend_api: str = ""  # e.g. "your-app.clerk.accounts.dev"
     clerk_secret_key: str = ""  # for audit signing
+    clerk_issuer_url: str = ""   # e.g. "https://clerk.your-domain.com"
+    clerk_audience: str = "clerk"
 
     # Database (chat_db) — password must be provided via environment variable
-    database_url: str = ""  # e.g. postgresql+asyncpg://chatbot:<password>@localhost:5432/chat_db
+    database_url: str = Field(
+        "", 
+        validation_alias=AliasChoices("DATABASE_URL", "CHAT_DATABASE_URL")
+    )
 
     # Redis
-    redis_url: str = "redis://localhost:6379"
+    redis_url: str = "redis://localhost:6379"  # include password inline: redis://:pass@host:port
 
     # LLM
     llm_provider: str = "openai"  # "openai" | "anthropic" | "local"
@@ -24,7 +29,7 @@ class Settings(BaseSettings):
     max_tool_calls_per_session: int = 15
 
     # LangSmith
-    langchain_tracing_v2: str = "true"
+    langchain_tracing_v2: bool = True
     langchain_api_key: str = ""
     langchain_project: str = "ai-chatbot-prod"
 
@@ -32,7 +37,10 @@ class Settings(BaseSettings):
     slack_webhook_url: str = ""
 
     # CORS
-    frontend_url: str = "http://localhost:3000"
+    frontend_url: str = ""  # must be set — app fails fast if omitted in production
+
+    # App
+    max_conversations_limit: int = 50
 
     class Config:
         env_file = ".env"

@@ -12,52 +12,54 @@
 
 ```bash
 cd backend
-pip install python-jose[cryptography] httpx
+pip install "pyjwt[crypto]" cryptography httpx
 ```
 
 ---
 
 ## Step 2.2 — JWT Verification Dependency
 
-Implement the logic to fetch Clerk's public keys and verify incoming tokens.
+Implement the logic to fetch Clerk's public keys and verify incoming tokens using `PyJWKClient`.
 
 ```python
 # ai-server/auth/clerk.py
-import httpx
-from jose import jwt
-from fastapi import Header, HTTPException, Depends
+import jwt
+from jwt import PyJWKClient
+from fastapi import HTTPException, Request
 from config import settings
 
-# Clerk JWKS URL (cache this in production!)
-CLERK_JWKS_URL = f"https://{settings.clerk_frontend_api}/.well-known/jwks.json"
+# Cached JWKS client
+_jwks_client: PyJWKClient | None = None
 
-async def get_clerk_public_keys():
-    """Fetch public keys from Clerk. In production, cache this in Redis!"""
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(CLERK_JWKS_URL)
-        resp.raise_for_status()
-        return resp.json()["keys"]
+def _get_jwks_client(issuer: str) -> PyJWKClient:
+    global _jwks_client
+    jwks_url = f"{issuer.rstrip('/')}/.well-known/jwks.json"
+    if not _jwks_client:
+        _jwks_client = PyJWKClient(jwks_url, cache_keys=True)
+    return _jwks_client
 
-async def verify_clerk_token(authorization: str = Header(...)) -> dict:
-    """Dependency to verify Clerk JWT and return the payload."""
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(401, "Invalid auth header. Expected 'Bearer <token>'")
+async def get_current_user(request: Request) -> str:
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(401, "Missing or invalid Authorization header")
+
+    token = auth_header[7:]
     
-    token = authorization.split(" ")[1]
-    
-    # Implementation Detail: In production, fetch keys once and cache in Redis for 1h
-    keys = await get_clerk_public_keys()
+    # Determine issuer from settings
+    issuer = settings.clerk_issuer_url or f"https://{settings.clerk_frontend_api}"
 
     try:
-        # jose will find the correct key from the 'keys' list based on 'kid' in header
+        jwks_client = _get_jwks_client(issuer)
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+
         payload = jwt.decode(
-            token, 
-            keys, 
-            algorithms=["RS256"], 
-            audience=None, # Clerk tokens don't always have aud
-            issuer=f"https://{settings.clerk_frontend_api}"
+            token,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=settings.clerk_audience,
+            issuer=issuer,
         )
-        return payload # Contains 'sub' (user_id), 'email', etc.
+        return payload["sub"]
     except Exception as e:
         raise HTTPException(401, f"Invalid token: {str(e)}")
 ```

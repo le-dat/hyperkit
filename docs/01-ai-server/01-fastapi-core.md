@@ -18,6 +18,12 @@ FastAPI application with:
 ai-server/
 ├── main.py            ← App factory + lifespan
 ├── config.py          ← Pydantic BaseSettings
+├── core/
+│   └── exceptions.py  ← Custom exceptions
+├── middleware/
+│   └── logging.py     ← Structured logging middleware
+├── routers/
+│   └── system.py      ← Health check & system routes
 ├── auth/
 │   └── clerk.py       ← Clerk JWT verify dependency
 └── db/
@@ -36,7 +42,7 @@ pip install fastapi "uvicorn[standard]" sse-starlette \
   httpx pydantic-settings python-dotenv \
   tenacity pybreaker langchain-openai langchain-anthropic \
   langgraph langsmith structlog prometheus-client mcp \
-  python-jose[cryptography]
+  "pyjwt[crypto]" cryptography
 ```
 
 ---
@@ -45,43 +51,32 @@ pip install fastapi "uvicorn[standard]" sse-starlette \
 
 ```python
 # ai-server/config.py
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings
+
 
 class Settings(BaseSettings):
     # Auth (Clerk)
-    clerk_frontend_api: str = ""       # e.g. "your-app.clerk.accounts.dev"
-    clerk_secret_key: str = ""         # for audit signing
+    clerk_frontend_api: str = ""  # e.g. "your-app.clerk.accounts.dev"
+    clerk_secret_key: str = ""  # for audit signing
+    clerk_issuer_url: str = ""   # e.g. "https://clerk.your-domain.com"
+    clerk_audience: str = "clerk"
 
-    # Database (chat_db) — password must be provided via environment variable
-    database_url: str = ""  # e.g. postgresql+asyncpg://chatbot:<password>@localhost:5432/chat_db
+    # Database (chat_db) — supports standard and custom env var names
+    database_url: str = Field(
+        "", 
+        validation_alias=AliasChoices("DATABASE_URL", "CHAT_DATABASE_URL")
+    )
 
     # Redis
     redis_url: str = "redis://localhost:6379"
 
-    # LLM
-    llm_provider: str = "openai"          # "openai" | "anthropic" | "local"
-    openai_api_key: str = ""
-    anthropic_api_key: str = ""
-    vllm_base_url: str = "http://localhost:8080/v1"   # on-premise
-
-    # Guardrails
-    max_cost_per_request_usd: float = 5.0
-    max_tool_calls_per_session: int = 15
-
-    # LangSmith
-    langchain_tracing_v2: str = "true"
-    langchain_api_key: str = ""
-    langchain_project: str = "ai-chatbot-prod"
-
-    # Slack alerts
-    slack_webhook_url: str = ""
-
-    # CORS
-    frontend_url: str = "http://localhost:3000"
+    # ... (rest of the settings)
 
     class Config:
         env_file = ".env"
         extra = "ignore"
+
 
 settings = Settings()
 ```
@@ -202,55 +197,37 @@ async def get_user_conversations(user_id: str) -> list[Conversation]:
 ```python
 # ai-server/main.py
 import os
+import structlog
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import redis.asyncio as aioredis
 
 from config import settings
-from db.models import Base, engine
+from db.models import init_db
+from middleware.logging import log_requests
+from routers import system
+from core.exceptions import RedisConnectionError, DBConnectionError
 
-# Set LangSmith tracing env vars before importing LangChain
-os.environ["LANGCHAIN_TRACING_V2"] = settings.langchain_tracing_v2
-os.environ["LANGCHAIN_API_KEY"]     = settings.langchain_api_key
-os.environ["LANGCHAIN_PROJECT"]     = settings.langchain_project
-
+# ... (Environment & Logging config)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # ── Startup ─────────────────────────────────────────────────────────
-    # Redis
-    app.state.redis = await aioredis.from_url(settings.redis_url, decode_responses=True)
-    # DB: create tables if not exist
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    init_db(settings.database_url)
+    # ... (Verify DB & Redis)
     yield
-    # ── Shutdown ─────────────────────────────────────────────────────────
-    await app.state.redis.close()
-    await engine.dispose()
-
+    # ... (Cleanup)
 
 app = FastAPI(title="AI Chatbot Backend", version="1.0.0", lifespan=lifespan)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.frontend_url],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Middleware
+if not settings.frontend_url:
+    raise ValueError("frontend_url must be set")
 
-# Routers — added in later steps
-# from routers import agent, sse, history, mcp
-# app.include_router(agent.router)
-# app.include_router(sse.router)
-# app.include_router(history.router)
-# app.include_router(mcp.router)
+app.add_middleware(CORSMiddleware, allow_origins=[settings.frontend_url], ...)
+app.middleware("http")(log_requests)
 
-@app.get("/health")
-async def health(request: "Request"):
-    redis_ok = await request.app.state.redis.ping()
-    return {"status": "ok", "redis": redis_ok}
+# Routers
+app.include_router(system.router, tags=["system"])
 ```
 
 ---
