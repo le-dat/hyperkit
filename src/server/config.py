@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     clerk_frontend_api: str = ""  # e.g. "your-app.clerk.accounts.dev"
     clerk_secret_key: str = ""  # for audit signing
     clerk_issuer_url: str = ""   # e.g. "https://clerk.your-domain.com"
-    clerk_audience: str = "clerk"
+    clerk_audience: str = ""  # Usually your Clerk frontend API URL (e.g. https://your-app.clerk.accounts.dev)
 
     # Database (chat_db) — password must be provided via environment variable
     database_url: str = Field(
