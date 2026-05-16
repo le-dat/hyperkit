@@ -4,8 +4,9 @@ import re
 import structlog
 from functools import lru_cache
 
+import httpx
 import jwt
-from fastapi import Depends, HTTPException, Request
+from fastapi import HTTPException, Request
 from jwt import PyJWKClient, ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError
 
 
@@ -84,10 +85,10 @@ async def get_current_user(request: Request) -> str:
         raise HTTPException(status_code=401, detail="Invalid token audience")
     except InvalidIssuerError:
         raise HTTPException(status_code=401, detail="Invalid token issuer")
-    except jwt.InvalidSignatureError:
+    except jwt.InvalidSignatureError as e:
         structlog.get_logger().error("jwt_signature_invalid", error=str(e))
         raise HTTPException(status_code=401, detail="Invalid token signature")
-    except jwt.DecodeError:
+    except jwt.DecodeError as e:
         structlog.get_logger().error("jwt_decode_error", error=str(e))
         raise HTTPException(status_code=401, detail="Malformed token")
     except httpx.RequestError as e:

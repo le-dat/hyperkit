@@ -1,5 +1,4 @@
 # ai-server/db/chat_history.py
-import httpx
 from sqlalchemy import select, func
 from db.models import AsyncSessionLocal, Conversation, Message
 
