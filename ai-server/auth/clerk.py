@@ -1,55 +1,65 @@
 # ai-server/auth/clerk.py
 """Clerk JWT verification dependency."""
-import httpx
-import jwt
-from jwt import PyJWKClient
-from fastapi import HTTPException, Request
+import re
+import structlog
+from functools import lru_cache
 
-# Module-level JWKS client (cached by PyJWKClient internally)
-_jwks_client: PyJWKClient | None = None
-_jwks_url: str | None = None
+import jwt
+from fastapi import Depends, HTTPException, Request
+from jwt import PyJWKClient, ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError
+
+
+# Module-level JWKS client cache (keyed by issuer URL)
+_jwks_cache: dict[str, PyJWKClient] = {}
+
+
+@lru_cache(maxsize=1)
+def _get_issuer() -> str:
+    """Resolve and cache the Clerk issuer URL once at startup."""
+    from config import settings
+
+    if settings.clerk_issuer_url:
+        return settings.clerk_issuer_url.rstrip("/")
+    if settings.clerk_frontend_api:
+        return f"https://{settings.clerk_frontend_api}"
+
+    # Last-resort fallback — parse from secret key, but warn since it's brittle
+    if settings.clerk_secret_key and "@" in settings.clerk_secret_key:
+        match = re.search(r"@([^/]+)", settings.clerk_secret_key)
+        if match:
+            structlog.get_logger().warning(
+                "clerk_issuer_parsed_from_secret_key",
+                note="This fallback is brittle — set clerk_issuer_url explicitly",
+            )
+            return f"https://{match.group(1)}"
+
+    raise HTTPException(
+        status_code=500,
+        detail="Clerk configuration missing — set CLERK_ISSUER_URL or CLERK_FRONTEND_API",
+    )
 
 
 def _get_jwks_client(issuer: str) -> PyJWKClient:
     """Get or create a cached PyJWKClient for the given issuer."""
-    global _jwks_client, _jwks_url
-    jwks_url = f"{issuer.rstrip('/')}/.well-known/jwks.json"
+    global _jwks_cache
+    jwks_url = f"{issuer}/.well-known/jwks.json"
 
-    if _jwks_client is None or _jwks_url != jwks_url:
-        _jwks_client = PyJWKClient(jwks_url, cache_keys=True)
-        _jwks_url = jwks_url
-    return _jwks_client
+    if jwks_url not in _jwks_cache:
+        _jwks_cache[jwks_url] = PyJWKClient(jwks_url, cache_keys=True)
+    return _jwks_cache[jwks_url]
 
 
 async def get_current_user(request: Request) -> str:
-    """Verify Clerk JWT and return user_id."""
+    """Verify Clerk JWT and return user_id (sub claim)."""
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
 
     token = auth_header[7:]
-
     from config import settings
 
-    # Determine issuer
-    if settings.clerk_issuer_url:
-        issuer = settings.clerk_issuer_url
-    elif settings.clerk_frontend_api:
-        issuer = f"https://{settings.clerk_frontend_api}"
-    else:
-        # Fallback to parsing from secret key if absolutely necessary, but warn it's brittle
-        if not settings.clerk_secret_key or "@" not in settings.clerk_secret_key:
-            raise HTTPException(
-                status_code=500,
-                detail="Clerk configuration missing (issuer_url or frontend_api required)",
-            )
-        import re
-        match = re.search(r"@([^/]+)", settings.clerk_secret_key)
-        if not match:
-            raise HTTPException(status_code=500, detail="Could not parse Clerk issuer")
-        issuer = f"https://{match.group(1)}"
-
     try:
+        issuer = _get_issuer()
         jwks_client = _get_jwks_client(issuer)
         signing_key = jwks_client.get_signing_key_from_jwt(token)
 
@@ -57,22 +67,39 @@ async def get_current_user(request: Request) -> str:
             token,
             signing_key.key,
             algorithms=["RS256"],
-            audience=settings.clerk_audience,
+            audience=settings.clerk_audience or None,  # None lets pyjwt handle missing aud
             issuer=issuer,
         )
         sub = payload.get("sub")
-        if not sub:
-            raise HTTPException(status_code=401, detail="Token missing 'sub' claim")
+        if not sub or not isinstance(sub, str) or not sub.strip():
+            raise HTTPException(status_code=401, detail="Token missing valid 'sub' claim")
+        # Clerk user IDs follow the user_<ulid> pattern
+        if not sub.startswith("user_"):
+            structlog.get_logger().warning("jwt_sub_unexpected_format", sub=sub)
         return sub
 
-    except jwt.ExpiredSignatureError:
+    except ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidAudienceError:
+    except InvalidAudienceError:
         raise HTTPException(status_code=401, detail="Invalid token audience")
-    except jwt.InvalidIssuerError:
+    except InvalidIssuerError:
         raise HTTPException(status_code=401, detail="Invalid token issuer")
+    except jwt.InvalidSignatureError:
+        structlog.get_logger().error("jwt_signature_invalid", error=str(e))
+        raise HTTPException(status_code=401, detail="Invalid token signature")
+    except jwt.DecodeError:
+        structlog.get_logger().error("jwt_decode_error", error=str(e))
+        raise HTTPException(status_code=401, detail="Malformed token")
+    except httpx.RequestError as e:
+        structlog.get_logger().error("jwks_request_failed", error=str(e), issuer=issuer)
+        raise HTTPException(status_code=503, detail="Auth service unavailable")
+    except HTTPException:
+        raise  # Re-raise HTTPExceptions as-is
     except Exception as e:
-        # Log the full error for debugging
-        import structlog
         structlog.get_logger().error("jwt_verification_failed", error=str(e))
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+# FastAPI dependency wrapper — use this with Depends() for testability
+async def get_current_user_dep(request: Request) -> str:
+    return await get_current_user(request)

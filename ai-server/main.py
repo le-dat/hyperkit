@@ -87,7 +87,7 @@ app.add_middleware(
     allow_origins=[settings.frontend_url],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 app.middleware("http")(log_requests)
 
