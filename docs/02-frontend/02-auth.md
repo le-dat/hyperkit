@@ -110,7 +110,7 @@ export const useChatApi = () => {
 
 ## Step 2.5 — Backend JWT Verification (FastAPI)
 
-Ensure your FastAPI backend is configured as described in [Backend Step 02 — Clerk Auth](../ai-agent/02-auth.md).
+Ensure your FastAPI backend is configured as described in [Backend Step 02 — Clerk Auth](../01-ai-server/02-auth.md).
 
 The flow:
 1. **Browser**: Calls `getToken()` from Clerk.

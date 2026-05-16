@@ -14,7 +14,7 @@ Production-grade observability:
 ## File Structure
 
 ```
-backend/
+ai-server/
 └── observability/
     ├── logger.py     ← structlog JSON
     ├── langsmith.py  ← @traceable + cost
@@ -29,7 +29,7 @@ tests/
 ## Step 8.1 — Structured Logger
 
 ```python
-# backend/observability/logger.py
+# ai-server/observability/logger.py
 import structlog, logging
 
 structlog.configure(
@@ -56,7 +56,7 @@ log = structlog.get_logger()
 ## Step 8.2 — LangSmith Tracing
 
 ```python
-# backend/observability/langsmith.py
+# ai-server/observability/langsmith.py
 # Set before importing LangChain (done in main.py lifespan)
 # os.environ["LANGCHAIN_TRACING_V2"] = "true"
 # All LangGraph calls auto-traced → https://smith.langchain.com
@@ -88,7 +88,7 @@ async def traced_run(conversation_id: str, message: str, user_id: str):
 ## Step 8.3 — Prometheus Metrics + Alert Thresholds
 
 ```python
-# backend/observability/metrics.py
+# ai-server/observability/metrics.py
 from prometheus_client import Counter, Histogram, Gauge
 
 REQUEST_LATENCY = Histogram(
@@ -126,7 +126,7 @@ async def prometheus_metrics():
 ## Step 8.4 — RAGAS Eval + LLM-as-Judge
 
 ```python
-# backend/observability/eval.py
+# ai-server/observability/eval.py
 import random, json
 from langchain_openai import ChatOpenAI
 

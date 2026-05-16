@@ -44,14 +44,14 @@ Follow this step-by-step roadmap in the exact numbered order.
 | Step | File | Service | What |
 |------|------|---------|------|
 | 00 | [Infrastructure](docs/00-infrastructure/01-infrastructure.md) | Infra | PostgreSQL + Redis: Docker setup & DB schema |
-| 01 | [FastAPI Core](docs/01-ai-agent/01-fastapi-core.md) | **Python** | FastAPI app factory, config, SQLAlchemy models |
-| 02 | [Backend Auth](docs/01-ai-agent/02-auth.md) | **Python** | Clerk JWT verification, JWKS caching |
-| 03 | [LangGraph Agent](docs/01-ai-agent/03-langgraph-agent.md) | **Python** | LangGraph graph, 3-tier memory, checkpointer |
-| 04 | [Worker & Router](docs/01-ai-agent/04-worker-llm.md) | **Python** | ARQ Worker + Multi-LLM router + agent endpoints |
-| 05 | [Guardrails](docs/01-ai-agent/05-guardrails.md) | **Python** | Input, Output, Tool, Budget guards |
-| 06 | [SSE & History](docs/01-ai-agent/06-sse-history.md) | **Python** | SSE router (PubSub → browser) + History API |
-| 07 | [MCP Integration](docs/01-ai-agent/07-mcp.md) | **Python** | MCP registry, transport, dynamic tool binding |
-| 08 | [Observability](docs/01-ai-agent/08-observability.md) | **Python** | structlog, LangSmith, Prometheus, RAGAS eval |
+| 01 | [FastAPI Core](docs/01-ai-server/01-fastapi-core.md) | **Python** | FastAPI app factory, config, SQLAlchemy models |
+| 02 | [Backend Auth](docs/01-ai-server/02-auth.md) | **Python** | Clerk JWT verification, JWKS caching |
+| 03 | [LangGraph Agent](docs/01-ai-server/03-langgraph-agent.md) | **Python** | LangGraph graph, 3-tier memory, checkpointer |
+| 04 | [Worker & Router](docs/01-ai-server/04-worker-llm.md) | **Python** | ARQ Worker + Multi-LLM router + agent endpoints |
+| 05 | [Guardrails](docs/01-ai-server/05-guardrails.md) | **Python** | Input, Output, Tool, Budget guards |
+| 06 | [SSE & History](docs/01-ai-server/06-sse-history.md) | **Python** | SSE router (PubSub → browser) + History API |
+| 07 | [MCP Integration](docs/01-ai-server/07-mcp.md) | **Python** | MCP registry, transport, dynamic tool binding |
+| 08 | [Observability](docs/01-ai-server/08-observability.md) | **Python** | structlog, LangSmith, Prometheus, RAGAS eval |
 
 ### Phase 2 — Next.js Frontend (`frontend/`)
 | Step | File | What |

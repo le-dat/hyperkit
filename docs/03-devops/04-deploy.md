@@ -4,7 +4,7 @@
 
 ```
 /opt/ai-chatbot/
-├── backend/              ← Python FastAPI Service
+├── ai-server/              ← Python FastAPI Service
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/             ← Next.js Service
@@ -232,7 +232,7 @@ On the Vercel Dashboard, add the following Clerk Environment Variables:
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_test_...` | From Clerk Dashboard |
 | `CLERK_SECRET_KEY` | `sk_test_...` | From Clerk Dashboard |
 | `BACKEND_URL` | `https://api.your-vps-domain.com` | **Internal** Server-to-Server |
-**backend/.env:**
+**ai-server/.env:**
 ```env
 CLERK_FRONTEND_API=your-app.clerk.accounts.dev
 ```
@@ -259,7 +259,7 @@ server {
 }
 ```
 
-**backend/.env:**
+**ai-server/.env:**
 ```env
 FRONTEND_URL=https://your-app.vercel.app
 # or if using same-origin nginx proxy:
@@ -285,4 +285,4 @@ FRONTEND_URL=https://your-vps-domain.com
 | Testing | `golden_dataset.json` has 100 Q&A pairs | ☐ |
 | Deploy | CI/CD pushes to main auto-deploys | ☐ |
 
-> ✅ **DevOps complete!** → See [security/01-security.md](../security/01-security.md) for hardening.
+> ✅ **DevOps complete!** → See [security/01-security.md](../04-security/01-security.md) for hardening.

@@ -6,7 +6,7 @@ The project consists of **3 separate services**, each with its own `.env` file:
 
 ```
 ai-chatbot/
-├── backend/       ← Python FastAPI          → .env (backend/.env)
+├── ai-server/       ← Python FastAPI          → .env (ai-server/.env)
 ├── frontend/      ← Next.js                → .env.local (frontend/.env.local)
 └── .env           ← Shared infra vars (Docker Compose reads this)
 ```
@@ -40,10 +40,10 @@ CLERK_SECRET_KEY=sk_test_...
 
 ---
 
-## `backend/.env` — Python FastAPI Service
+## `ai-server/.env` — Python FastAPI Service
 
 ```env
-# backend/.env
+# ai-server/.env
 # ── Auth verification (Clerk) ────────────────────────────────────────────
 CLERK_FRONTEND_API=your-app.clerk.accounts.dev
 CLERK_SECRET_KEY=sk_test_...
@@ -103,13 +103,13 @@ BACKEND_URL=http://localhost:8000
 
 ```bash
 # Create example files for each service
-cp backend/.env      backend/.env.example
+cp ai-server/.env      ai-server/.env.example
 cp frontend/.env.local frontend/.env.local.example
 cp .env              .env.example
 
 # Strip real values — leave keys only
 
-sed -i 's/=.*/=/' backend/.env.example
+sed -i 's/=.*/=/' ai-server/.env.example
 ```
 
 ---
@@ -119,9 +119,9 @@ sed -i 's/=.*/=/' backend/.env.example
 ```gitignore
 # .gitignore
 .env
-backend/.env
+ai-server/.env
 frontend/.env.local
-backend/checkpoints.db
+ai-server/checkpoints.db
 __pycache__/
 *.pyc
 node_modules/
@@ -150,7 +150,7 @@ For production, use a secret manager instead of `.env` files:
 ```bash
 # AWS Secrets Manager
 aws secretsmanager create-secret --name ai-chatbot/prod/backend \
-  --secret-string file://backend/.env
+  --secret-string file://ai-server/.env
 
 # Then in docker-compose.yml, inject at runtime:
 # secrets:

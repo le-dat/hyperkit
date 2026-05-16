@@ -230,4 +230,4 @@ export function useChat(conversationId: string | null, initialMessages: Message[
 - [ ] Conversation title shows first 80 chars of first message
 - [ ] Sign out → redirected to `/login`
 
-> ✅ **Frontend complete!** → Move to [devops/01-docker.md](../devops/01-docker.md)
+> ✅ **Frontend complete!** → Move to [devops/01-docker.md](../03-devops/01-docker.md)

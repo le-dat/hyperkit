@@ -12,7 +12,7 @@ Dynamically register and use MCP (Model Context Protocol) servers as LangGraph t
 ## File Structure
 
 ```
-backend/
+ai-server/
 └── mcp/
     ├── registry.py  ← server registry + connect + health
     └── client.py    ← transport abstraction
@@ -23,7 +23,7 @@ backend/
 ## Step 7.1 — MCP Registry
 
 ```python
-# backend/mcp/registry.py
+# ai-server/mcp/registry.py
 from dataclasses import dataclass, field
 from datetime import datetime
 from mcp import ClientSession, StdioServerParameters
@@ -115,7 +115,7 @@ registry.register(MCPServer(
 ## Step 7.2 — MCP Router
 
 ```python
-# backend/routers/mcp.py
+# ai-server/routers/mcp.py
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from auth.verify import verify_token
@@ -153,7 +153,7 @@ async def tools(user=Depends(verify_token)):
 ## Step 7.3 — Bind MCP Tools to LangGraph
 
 ```python
-# backend/agents/supervisor.py — add at startup
+# ai-server/agents/supervisor.py — add at startup
 from langchain_core.tools import StructuredTool
 from mcp.registry import registry
 

@@ -13,7 +13,7 @@
 ## File Structure
 
 ```
-backend/
+ai-server/
 ├── llm/
 │   └── router.py            ← Multi-LLM routing + fallback
 ├── workers/
@@ -27,7 +27,7 @@ backend/
 ## Step 4.1 — Multi-LLM Router
 
 ```python
-# backend/llm/router.py
+# ai-server/llm/router.py
 import os
 from enum import Enum
 from langchain_openai import ChatOpenAI
@@ -99,7 +99,7 @@ def get_llm(task: TaskType, provider: str = None):
 ## Step 4.2 — ARQ Worker
 
 ```python
-# backend/workers/agent_worker.py
+# ai-server/workers/agent_worker.py
 import json
 from datetime import datetime
 import redis.asyncio as aioredis
@@ -222,7 +222,7 @@ class WorkerSettings:
 ## Step 4.3 — Agent Router
 
 ```python
-# backend/routers/agent.py
+# ai-server/routers/agent.py
 import uuid, json
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel

@@ -16,7 +16,7 @@ Build the stateful AI agent core:
 ## File Structure
 
 ```
-backend/
+ai-server/
 ├── agents/
 │   ├── supervisor.py    ← LangGraph StateGraph
 │   └── registry.py      ← Agent factory (future: multi-agent)
@@ -30,7 +30,7 @@ backend/
 ## Step 2.1 — AgentState Schema
 
 ```python
-# backend/agents/supervisor.py
+# ai-server/agents/supervisor.py
 from typing import TypedDict, Annotated
 import operator
 
@@ -59,7 +59,7 @@ class AgentState(TypedDict):
 ## Step 2.2 — Checkpointer
 
 ```python
-# backend/state/checkpoint.py
+# ai-server/state/checkpoint.py
 import os
 from langgraph.checkpoint.sqlite import SqliteSaver
 # from langgraph.checkpoint.postgres import PostgresSaver  # prod
@@ -86,7 +86,7 @@ checkpointer = get_checkpointer()
 ## Step 2.3 — LangGraph Supervisor Graph
 
 ```python
-# backend/agents/supervisor.py (continued)
+# ai-server/agents/supervisor.py (continued)
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage
 
@@ -170,7 +170,7 @@ builder.add_conditional_edges("scan", route_after_scan, {
 ## Step 2.5 — 3-Tier Memory
 
 ```python
-# backend/state/memory.py
+# ai-server/state/memory.py
 from langchain.memory import ConversationSummaryBufferMemory
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage

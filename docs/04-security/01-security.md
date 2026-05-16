@@ -91,7 +91,7 @@ Clerk handles the majority of auth-related security. Recommended settings:
 ## 4 — FastAPI Per-Request Clerk Verification
 
 ```python
-# backend/auth/clerk.py
+# ai-server/auth/clerk.py
 # Every single FastAPI endpoint MUST use Depends(verify_clerk_token)
 # FastAPI verifies the Clerk JWT signature against public keys (JWKS)
 
@@ -109,7 +109,7 @@ async def get_history(user=Depends(verify_clerk_token)):
 ### Caching JWKS (avoid network calls on every request)
 
 ```python
-# backend/auth/clerk.py — with caching
+# ai-server/auth/clerk.py — with caching
 import httpx
 from jose import jwt
 from fastapi import Header, HTTPException, Request
@@ -149,7 +149,7 @@ async def verify_clerk_token(request: Request, authorization: str = Header(...))
 ## 5 — HMAC-Signed Audit Log
 
 ```python
-# backend/guards/audit.py
+# ai-server/guards/audit.py
 import hmac, hashlib, json, time
 from config import settings
 
@@ -200,7 +200,7 @@ def write_audit_log(event: str, user_id: str, data: dict) -> dict:
 ```bash
 # Python dependencies
 pip install pip-audit
-pip-audit -r backend/requirements.txt
+pip-audit -r ai-server/requirements.txt
 
 # Node dependencies
 cd frontend && npm audit

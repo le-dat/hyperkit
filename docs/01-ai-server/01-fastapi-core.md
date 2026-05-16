@@ -15,7 +15,7 @@ FastAPI application with:
 ## File Structure
 
 ```
-backend/
+ai-server/
 ├── main.py            ← App factory + lifespan
 ├── config.py          ← Pydantic BaseSettings
 ├── auth/
@@ -44,7 +44,7 @@ pip install fastapi "uvicorn[standard]" sse-starlette \
 ## Step 1.2 — config.py
 
 ```python
-# backend/config.py
+# ai-server/config.py
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -91,7 +91,7 @@ settings = Settings()
 ## Step 1.3 — db/models.py
 
 ```python
-# backend/db/models.py
+# ai-server/db/models.py
 from sqlalchemy import Column, String, Text, Integer, Float, DateTime, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -137,7 +137,7 @@ class Message(Base):
 ## Step 1.4 — db/chat_history.py
 
 ```python
-# backend/db/chat_history.py
+# ai-server/db/chat_history.py
 from sqlalchemy import select
 from db.models import AsyncSessionLocal, Conversation, Message
 
@@ -200,7 +200,7 @@ async def get_user_conversations(user_id: str) -> list[Conversation]:
 ## Step 1.5 — main.py
 
 ```python
-# backend/main.py
+# ai-server/main.py
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -258,7 +258,7 @@ async def health(request: "Request"):
 ## Step 1.6 — .env (backend)
 
 ```env
-# backend/.env
+# ai-server/.env
 CLERK_FRONTEND_API=your-app.clerk.accounts.dev
 CLERK_SECRET_KEY=sk_test_...
 DATABASE_URL=postgresql+asyncpg://chatbot:chatbot_pass@localhost:5432/chat_db

@@ -22,7 +22,7 @@ pip install python-jose[cryptography] httpx
 Implement the logic to fetch Clerk's public keys and verify incoming tokens.
 
 ```python
-# backend/auth/clerk.py
+# ai-server/auth/clerk.py
 import httpx
 from jose import jwt
 from fastapi import Header, HTTPException, Depends
@@ -69,7 +69,7 @@ async def verify_clerk_token(authorization: str = Header(...)) -> dict:
 Apply the dependency to your routes.
 
 ```python
-# backend/main.py (example)
+# ai-server/main.py (example)
 from fastapi import Depends
 from auth.clerk import verify_clerk_token
 
@@ -85,7 +85,7 @@ async def protected_endpoint(user: dict = Depends(verify_clerk_token)):
 Ensure your `.env` has the Clerk API URL:
 
 ```env
-# backend/.env
+# ai-server/.env
 CLERK_FRONTEND_API=your-app.clerk.accounts.dev
 CLERK_SECRET_KEY=sk_test_...  # Optional: for backend-only actions
 ```

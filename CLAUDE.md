@@ -19,7 +19,7 @@ ai-chatbot/
 ├── backend/           # FastAPI + LangGraph + ARQ
 ├── docs/              # 17-step implementation roadmap
 │   ├── 00-infrastructure/ # Step 00: PostgreSQL + Redis Docker setup
-│   ├── 01-ai-agent/      # Steps 01–08: FastAPI, Clerk, LangGraph, worker, guardrails, SSE, MCP, observability
+│   ├── 01-ai-server/      # Steps 01–08: FastAPI, Clerk, LangGraph, worker, guardrails, SSE, MCP, observability
 │   ├── 02-frontend/      # Steps 09–12: Next.js, Clerk integration, chat UI, history
 │   ├── 03-devops/        # Steps 13–16: Docker, env, CI/CD, deployment
 │   └── 04-security/      # Security hardening
@@ -42,7 +42,7 @@ pnpm run lint --fix  # auto-fix lint errors
 docker compose -f docker-compose.infra.yml up -d   # PostgreSQL + Redis
 ```
 
-### Backend (not yet created — follow docs/ai-agent/ steps 01–08)
+### Backend (not yet created — follow docs/ai-server/ steps 01–08)
 ```bash
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
@@ -66,7 +66,7 @@ Key identifiers: `conversation_id` (PostgreSQL), `turn_id` (Redis, 1h TTL). Lang
 
 Follow the numbered steps in `docs/` exactly — they are ordered dependencies:
 - 00-infrastructure: PostgreSQL + Redis (run FIRST)
-- 01-ai-agent (Steps 01–08): FastAPI core → Clerk Auth → LangGraph → Worker → Guardrails → SSE → MCP → Observability
+- 01-ai-server (Steps 01–08): FastAPI core → Clerk Auth → LangGraph → Worker → Guardrails → SSE → MCP → Observability
 - 02-frontend (Steps 09–12): Next.js frontend (setup → Clerk auth → chat → history)
 - 03-devops (Steps 13–16): Docker → env → CI/CD → deployment
 - 04-security: Security hardening (do after backend is complete)
@@ -80,4 +80,4 @@ Infrastructure step (00) creates `docker-compose.infra.yml` — run this first b
 - JWT verification uses JWKS cached in Redis.
 - All FastAPI calls go through Next.js Route Handlers — browser never sees FastAPI URL directly
 - `BACKEND_URL` env var must NOT have `NEXT_PUBLIC_` prefix (server-side only)
-- The `backend/` directory does not yet exist — follow the ordered steps in `docs/ai-agent/` to build it
+- The `backend/` directory does not yet exist — follow the ordered steps in `docs/ai-server/` to build it

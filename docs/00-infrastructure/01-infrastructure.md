@@ -10,10 +10,7 @@ Spin up shared infrastructure used by all services:
 
 ---
 
-## Step 1.1 — docker-compose.infra.yml
-
-```yaml
-# docker-compose.infra.yml
+# docker-compose.yml (Base / VPS)
 version: "3.9"
 
 services:
@@ -25,24 +22,22 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-chatbot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chatbot_pass}
       POSTGRES_DB: ${POSTGRES_DB:-chatbot}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/init.sql:/docker-entrypoint-initdb.d/init.sql  # create chat DB
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - chatbot_net
 
   redis:
     image: redis:7-alpine
     container_name: ai_chatbot_redis
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -50,15 +45,37 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - chatbot_net
 
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  chatbot_net:
+    name: chatbot_network
+    driver: bridge
+
+## Step 1.2 — docker-compose.override.yml (Local only)
+
+```yaml
+# docker-compose.override.yml
+version: "3.9"
+
+services:
+  postgres:
+    ports:
+      - "5432:5432" # Expose for Local DB tools
+
+  redis:
+    ports:
+      - "6379:6379" # Expose for Local Redis tools
 ```
 
 ---
 
-## Step 1.2 — infra/init.sql (chat DB setup)
+## Step 1.3 — infra/init.sql (chat DB setup)
 
 ```sql
 -- infra/init.sql
@@ -114,32 +131,44 @@ CREATE INDEX IF NOT EXISTS idx_conversations_user    ON conversations(user_id, u
 
 ---
 
-## Step 1.5 — Start Infrastructure
+## Step 1.6 — Start Infrastructure
 
+> ⚠️ **Note**: Run these commands from the `ai-server` directory.
+
+### For Local Development
+Simply run (Docker will automatically use `docker-compose.yml` + `docker-compose.override.yml`):
 ```bash
-# Start infra only (no app services yet)
-docker compose -f docker-compose.infra.yml up -d
+cd ai-server
+docker compose up -d
+```
 
-# Verify
-docker compose -f docker-compose.infra.yml ps
-# → postgres: healthy, redis: healthy
+### For VPS Deployment
+Ensure ONLY `docker-compose.yml` is present (or specify it explicitly):
+```bash
+cd ai-server
+docker compose -f docker-compose.yml up -d
+```
 
-# Test PostgreSQL
+### Verify
+```bash
+# Check health
+docker compose ps
+
+# Test PostgreSQL (Local)
 psql -h localhost -U chatbot -d chat_db -c "\l"
 
-# Test Redis
+# Test Redis (Local)
 redis-cli ping
-# → PONG
-
-redis-cli info keyspace
 ```
 
 ---
 
-## Step 1.6 — .env (shared infra variables)
+## Step 1.7 — .env (shared infra variables)
+
+Located at `ai-server/.env`:
 
 ```env
-# .env (root level — shared across all services)
+# .env (shared across all backend services)
 POSTGRES_USER=chatbot
 POSTGRES_PASSWORD=chatbot_pass
 POSTGRES_DB=chatbot
@@ -158,10 +187,10 @@ REDIS_PORT=6379
 
 ## Verification Checklist
 
-- [ ] `docker compose -f docker-compose.infra.yml up -d` — no errors
+- [ ] `docker compose ... up -d` — no errors
 - [ ] `docker ps` shows both containers as **healthy**
 - [ ] `psql` connects to `chat_db`
 - [ ] `redis-cli ping` returns `PONG`
 - [ ] `chat_db` exists and is ready for FastAPI
 
-> ➡️ Next: [Step 01 — FastAPI Core](../ai-agent/01-fastapi-core.md)
+> ➡️ Next: [Step 01 — FastAPI Core](../01-ai-server/01-fastapi-core.md)

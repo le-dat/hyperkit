@@ -15,7 +15,7 @@ Defense-in-depth với 4 lớp guards trước khi request chạm vào LLM:
 ## File Structure
 
 ```
-backend/
+ai-server/
 └── guards/
     ├── input.py    ← inject detection + PII mask
     ├── output.py   ← structured output + retry
@@ -28,7 +28,7 @@ backend/
 ## Step 5.1 — Input Guard
 
 ```python
-# backend/guards/input.py
+# ai-server/guards/input.py
 import re
 from fastapi import HTTPException
 
@@ -71,7 +71,7 @@ def wrap_xml(content: str, tag: str = "invoice_data") -> str:
 ## Step 5.2 — Output Guard
 
 ```python
-# backend/guards/output.py
+# ai-server/guards/output.py
 import json
 from pydantic import BaseModel, validator
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -139,7 +139,7 @@ def cross_validate_amount(llm_amount: float, ocr_text: str) -> bool:
 ## Step 5.3 — Tool Guard
 
 ```python
-# backend/guards/tools.py
+# ai-server/guards/tools.py
 import hashlib
 from collections import defaultdict
 
@@ -186,7 +186,7 @@ tool_guard = ToolGuard()
 ## Step 5.4 — Budget Guard
 
 ```python
-# backend/guards/budget.py
+# ai-server/guards/budget.py
 import httpx
 from functools import wraps
 from langchain_community.callbacks import get_openai_callback
@@ -230,7 +230,7 @@ def budget_guard(max_cost: float = None):
 ## Integration in Worker
 
 ```python
-# backend/workers/agent_worker.py — add guards
+# ai-server/workers/agent_worker.py — add guards
 from guards.input import guard_input
 from guards.tools import tool_guard
 from guards.budget import budget_guard

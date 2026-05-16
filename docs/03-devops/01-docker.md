@@ -20,7 +20,7 @@ ai-chatbot/
 ├── nginx/
 │   ├── nginx.conf
 │   └── certs/                 ← SSL certificates (Let's Encrypt)
-├── backend/
+├── ai-server/
 │   └── Dockerfile
 └── frontend/
     └── Dockerfile
@@ -206,7 +206,7 @@ http {
 ```
 
 ```dockerfile
-# backend/Dockerfile
+# ai-server/Dockerfile
 FROM python:3.12-slim
 WORKDIR /app
 COPY requirements.txt .

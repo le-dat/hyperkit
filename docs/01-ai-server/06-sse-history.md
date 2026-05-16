@@ -12,7 +12,7 @@
 ## File Structure
 
 ```
-backend/
+ai-server/
 └── routers/
     ├── sse.py      ← GET /sse/{turn_id}
     └── history.py  ← GET /history, GET /history/{conv_id}
@@ -23,7 +23,7 @@ backend/
 ## Step 6.1 — SSE Router
 
 ```python
-# backend/routers/sse.py
+# ai-server/routers/sse.py
 import json, asyncio
 from fastapi import APIRouter, Request, Depends, HTTPException
 from sse_starlette.sse import EventSourceResponse
@@ -83,7 +83,7 @@ async def stream(turn_id: str, request: Request, user=Depends(verify_token)):
 ## Step 6.2 — History Router
 
 ```python
-# backend/routers/history.py
+# ai-server/routers/history.py
 from fastapi import APIRouter, Depends
 from auth.verify import verify_token
 from db.chat_history import get_user_conversations, get_conversation_messages
@@ -119,7 +119,7 @@ async def get_messages(conversation_id: str, user=Depends(verify_token)):
 ## Step 6.3 — Register routers in main.py
 
 ```python
-# backend/main.py — add these imports
+# ai-server/main.py — add these imports
 from routers.agent   import router as agent_router
 from routers.sse     import router as sse_router
 from routers.history import router as history_router

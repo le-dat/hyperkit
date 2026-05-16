@@ -34,9 +34,9 @@ name: Backend CI
 
 on:
   push:
-    paths: ["backend/**"]
+    paths: ["ai-server/**"]
   pull_request:
-    paths: ["backend/**"]
+    paths: ["ai-server/**"]
 
 jobs:
   lint-test:
@@ -58,7 +58,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: ai-server/requirements.txt
 
       - run: pip install -r requirements.txt
       - run: pip install ruff pytest pytest-asyncio
