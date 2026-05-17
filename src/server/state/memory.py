@@ -54,7 +54,10 @@ async def recall_entity(
     redis: aioredis.Redis, conv_id: str, key: str
 ) -> str | None:
     """Recall entity without user having to repeat it."""
-    return await redis.hget(f"session:{conv_id}:entities", key)
+    val = await redis.hget(f"session:{conv_id}:entities", key)
+    if val is None:
+        return None
+    return val.decode() if isinstance(val, bytes) else val
 
 
 async def recall_all_entities(

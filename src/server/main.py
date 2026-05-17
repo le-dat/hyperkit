@@ -127,10 +127,5 @@ app.middleware("http")(log_requests)
 
 # Routers
 app.include_router(system.router, tags=["system"])
-
-# Future Routers (not yet implemented)
-# from routers import agent, sse, history, mcp
-# app.include_router(agent.router, prefix="/agent", tags=["agent"])
-# app.include_router(sse.router, prefix="/sse", tags=["sse"])
-# app.include_router(history.router, prefix="/history", tags=["history"])
-# app.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
+from routers import agent  # noqa: F401
+app.include_router(agent.router, prefix="/agent", tags=["agent"])

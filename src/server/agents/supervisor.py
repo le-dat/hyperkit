@@ -46,10 +46,12 @@ def node_process(state: AgentState) -> dict:
             "errors": [],  # clear any prior errors on success
         }
     except Exception as e:
-        # LLM call failed — record the error and increment attempts
-        # so the retry loop can eventually give up.
+        # Cap errors at last 3 to prevent unbounded growth in long conversations
+        prior = state.get("errors", [])
+        errors = [str(e)] + prior
+        errors = errors[:3]
         return {
-            "errors": [str(e)],
+            "errors": errors,
             "attempts": state.get("attempts", 0) + 1,
         }
 
