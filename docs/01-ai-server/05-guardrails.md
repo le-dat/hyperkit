@@ -140,15 +140,61 @@ def cross_validate_amount(llm_amount: float, ocr_text: str) -> bool:
 
 ```python
 # ai-server/guards/tools.py
+import os
+import re
 import hashlib
 from collections import defaultdict
 
 ALLOWED_TOOLS = {"create_invoice", "search_vendor", "get_exchange_rate",
-                 "search_web", "list_files", "read_file"}
+                 "search_web", "list_files", "read_file", "write_file", "run_bash_command"}
 MAX_TOOL_CALLS   = 15
 EMPTY_RESULT_MAX = 3     # 3× empty → stop, conclude "no data"
 
 
+# ── 1. Path Traversal Guard ───────────────────────────────────────────
+def check_path_traversal(target_path: str, allowed_base_dir: str = "/home/app/workspace") -> str:
+    """
+    Ensure the resolved absolute path is strictly nested within the allowed base directory.
+    Uses realpath to resolve any symlinks, relative segments (..), or shortcuts.
+    """
+    resolved_base = os.path.realpath(allowed_base_dir)
+    # Support relative paths resolved against allowed_base_dir
+    if not os.path.isabs(target_path):
+        resolved_target = os.path.realpath(os.path.join(resolved_base, target_path))
+    else:
+        resolved_target = os.path.realpath(target_path)
+    
+    # Ensure that target is nested inside the base directory
+    if os.path.commonpath([resolved_target, resolved_base]) != resolved_base:
+        raise ValueError(f"Security Warning: Access denied to path '{target_path}'. Directory traversal attempt detected.")
+        
+    return resolved_target
+
+
+# ── 2. Bash Command Validator ──────────────────────────────────────────
+class BashCommandValidator:
+    """
+    Prevents command injection and execution of dangerous shell commands.
+    """
+    # Block privilege escalation, sensitive paths, destructive commands, and execution spawns
+    BLOCK_REGEX = re.compile(
+        r"\b(sudo|su|pkexec|chown|chmod|visudo|passwd|shadow)\b|"  # Privilege/User Management
+        r"/(etc/(passwd|shadow|hosts|sysconfig|profile)|var/log|proc|sys|dev)\b|"  # Sensitive Directories
+        r"\b(rm\s+-[rRfFi]*\s+[^;\|&]+|\bmv\s+[^;\|&]+\s+/dev/null)\b|"  # Destructive
+        r"\b(eval|sh|bash|python|python3|pip|perl|php|node|gcc|make|wget|curl)\b",  # Spawners
+        re.IGNORECASE
+    )
+
+    @classmethod
+    def validate(cls, command: str) -> None:
+        """Raises ValueError if a blocked pattern is detected in the shell command."""
+        # Clean whitespaces
+        cleaned_cmd = " ".join(command.split())
+        if cls.BLOCK_REGEX.search(cleaned_cmd):
+            raise ValueError(f"Security Alert: Blocked execution of dangerous bash command: '{cleaned_cmd}'")
+
+
+# ── 3. Tool Guard Class ───────────────────────────────────────────────
 class ToolGuard:
     def __init__(self):
         self._counts: dict[str, int]     = defaultdict(int)
@@ -167,6 +213,15 @@ class ToolGuard:
         if sig in self._sigs[session_id]:
             raise ValueError(f"Duplicate call: {tool}({args}) — agent stuck in loop")
         self._sigs[session_id].add(sig)
+
+        # Apply specific security validators based on args
+        if tool in {"read_file", "write_file", "list_files"}:
+            if "path" in args:
+                check_path_traversal(args["path"])
+                
+        if tool == "run_bash_command":
+            if "command" in args:
+                BashCommandValidator.validate(args["command"])
 
     def record_empty(self, session_id: str) -> bool:
         """Returns True if agent should stop (too many empty results)."""

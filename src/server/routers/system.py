@@ -1,25 +1,22 @@
 # ai-server/routers/system.py
+import structlog
 from fastapi import APIRouter, Request
 
+logger = structlog.get_logger()
 router = APIRouter()
 
 
 @router.get("/health")
 async def health(request: Request):
-    # Use cached health state from startup — avoids redundant SELECT 1
     redis_ok = getattr(request.app.state, "redis_ready", False)
     db_ok = getattr(request.app.state, "db_ready", False)
 
-    # Double-check Redis is still responsive (cheap ping)
+    # Light Redis re-check (ping the fast-fail pool to avoid blocking)
     if redis_ok:
         try:
-            await request.app.state.redis.ping()
+            await request.app.state.redis_cache.ping()
         except Exception:
             redis_ok = False
 
     status = "ok" if (redis_ok and db_ok) else "degraded"
-    return {
-        "status": status,
-        "redis": redis_ok,
-        "database": db_ok,
-    }
+    return {"status": status, "redis": redis_ok, "database": db_ok}

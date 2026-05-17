@@ -11,7 +11,7 @@ from jwt import ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError
 
 
 # Module-level JWKS client cache (keyed by issuer URL)
-_jwks_cache: dict[str, PyJWKClient] = {}
+_jwks_cache: dict[str, "PyJWKClient"] = {}  # type: ignore[name-defined]
 
 
 @lru_cache(maxsize=1)
@@ -24,7 +24,7 @@ def _get_issuer() -> str:
     if settings.clerk_frontend_api:
         return f"https://{settings.clerk_frontend_api}"
 
-    # Last-resort fallback — parse from secret key, but warn since it's brittle
+    # Last-resort fallback — parse from secret key
     if settings.clerk_secret_key and "@" in settings.clerk_secret_key:
         match = re.search(r"@([^/]+)", settings.clerk_secret_key)
         if match:
@@ -40,13 +40,13 @@ def _get_issuer() -> str:
     )
 
 
-def _get_jwks_client(issuer: str) -> PyJWKClient:
+def _get_jwks_client(issuer: str) -> "PyJWKClient":  # type: ignore[name-defined]
     """Get or create a cached PyJWKClient for the given issuer."""
     global _jwks_cache
     jwks_url = f"{issuer}/.well-known/jwks.json"
 
     if jwks_url not in _jwks_cache:
-        _jwks_cache[jwks_url] = PyJWKClient(jwks_url, cache_keys=True)
+        _jwks_cache[jwks_url] = jwt.PyJWKClient(jwks_url, cache_keys=True)
     return _jwks_cache[jwks_url]
 
 
@@ -68,7 +68,7 @@ async def get_current_user(request: Request) -> str:
             token,
             signing_key.key,
             algorithms=["RS256"],
-            audience=settings.clerk_audience or None,  # None lets pyjwt handle missing aud
+            audience=settings.clerk_audience or None,
             issuer=issuer,
         )
         sub = payload.get("sub")
@@ -95,12 +95,12 @@ async def get_current_user(request: Request) -> str:
         structlog.get_logger().error("jwks_request_failed", error=str(e), issuer=issuer)
         raise HTTPException(status_code=503, detail="Auth service unavailable")
     except HTTPException:
-        raise  # Re-raise HTTPExceptions as-is
+        raise
     except Exception as e:
         structlog.get_logger().error("jwt_verification_failed", error=str(e))
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-# FastAPI dependency wrapper — use this with Depends() for testability
 async def get_current_user_dep(request: Request) -> str:
+    """FastAPI dependency wrapper — use this with Depends() for testability."""
     return await get_current_user(request)
