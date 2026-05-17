@@ -105,6 +105,15 @@ async def lifespan(app: FastAPI):
         database=int(parsed.path.lstrip("/") or 0),
     ))
 
+    # Build and cache MCP tools so the sync LangGraph node can use them
+    from agents.supervisor import build_mcp_tools, set_mcp_tools
+    try:
+        mcp_tools = await build_mcp_tools()
+        set_mcp_tools(mcp_tools)
+        structlog.get_logger().info("mcp_tools_loaded", count=len(mcp_tools))
+    except Exception as e:
+        structlog.get_logger().warning("mcp_tools_init_failed", error=str(e))
+
     structlog.get_logger().info("startup_complete", service="ai-chatbot-backend")
     yield
 
@@ -143,6 +152,8 @@ app.include_router(system.router, tags=["system"])
 from routers import agent  # noqa: F401
 from routers import sse  # noqa: F401
 from routers import history  # noqa: F401
+from routers import mcp  # noqa: F401
 app.include_router(agent.router, prefix="/agent", tags=["agent"])
 app.include_router(sse.router, prefix="/sse", tags=["sse"])
 app.include_router(history.router, prefix="/history", tags=["history"])
+app.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
