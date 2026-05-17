@@ -7,7 +7,7 @@ from functools import lru_cache
 import httpx
 import jwt
 from fastapi import HTTPException, Request
-from jwt import PyJWKClient, ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError
+from jwt import ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError
 
 
 # Module-level JWKS client cache (keyed by issuer URL)

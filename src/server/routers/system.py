@@ -6,22 +6,16 @@ router = APIRouter()
 
 @router.get("/health")
 async def health(request: Request):
-    # Check Redis
-    try:
-        redis_ok = await request.app.state.redis.ping()
-    except Exception:
-        redis_ok = False
+    # Use cached health state from startup — avoids redundant SELECT 1
+    redis_ok = getattr(request.app.state, "redis_ready", False)
+    db_ok = getattr(request.app.state, "db_ready", False)
 
-    # Check DB
-    db_ok = False
-    try:
-        from db.models import engine
-        async with engine.connect() as conn:
-            from sqlalchemy import text
-            await conn.execute(text("SELECT 1"))
-        db_ok = True
-    except Exception:
-        pass
+    # Double-check Redis is still responsive (cheap ping)
+    if redis_ok:
+        try:
+            await request.app.state.redis.ping()
+        except Exception:
+            redis_ok = False
 
     status = "ok" if (redis_ok and db_ok) else "degraded"
     return {

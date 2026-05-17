@@ -20,30 +20,38 @@ if settings.langchain_tracing_v2 and settings.langchain_api_key:
 else:
     os.environ["LANGCHAIN_TRACING_V2"] = "false"
 
-# Configure structlog
-structlog.configure(
-    processors=[
-        structlog.contextvars.merge_contextvars,
-        structlog.processors.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.JSONRenderer(),
-    ],
-)
+# Configure structlog — use console renderer in development for human-readable output
+is_development = os.getenv("ENV") == "development"
+_processors = [
+    structlog.contextvars.merge_contextvars,
+    structlog.processors.add_log_level,
+    structlog.processors.TimeStamper(fmt="iso"),
+]
+if is_development:
+    _processors.append(structlog.dev.ConsoleRenderer())
+else:
+    _processors.append(structlog.processors.JSONRenderer())
+structlog.configure(processors=_processors)
 
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── Startup ─────────────────────────────────────────────────────────
+    from config import settings
+    import redis.asyncio as aioredis
+
     init_db(settings.database_url)
     from db.models import engine
-    import redis.asyncio as aioredis
+    app.state.db_ready = False
+    app.state.redis_ready = False
 
     # Verify DB connection
     try:
         async with engine.connect() as conn:
             from sqlalchemy import text
             await conn.execute(text("SELECT 1"))
+        app.state.db_ready = True
     except Exception as e:
         structlog.get_logger().error("db_startup_failed", error=str(e))
         raise DBConnectionError(f"Database connection failed: {e}")
@@ -57,6 +65,7 @@ async def lifespan(app: FastAPI):
             socket_timeout=5,
         )
         await app.state.redis.ping()
+        app.state.redis_ready = True
     except Exception as e:
         structlog.get_logger().error("redis_startup_failed", error=str(e))
         raise RedisConnectionError(f"Redis connection failed: {e}")
@@ -75,7 +84,6 @@ app = FastAPI(
     title="AI Chatbot Backend",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs" if os.getenv("ENV") != "production" else None,
 )
 
 # Middleware

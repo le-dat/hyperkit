@@ -30,7 +30,6 @@ COPY . .
 # Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV ENV=production
 
 # Expose port
 EXPOSE 8000

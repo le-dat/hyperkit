@@ -55,12 +55,13 @@ async def get_conversation_messages(
         return []
     async with AsyncSessionLocal() as db:
         result = await db.execute(
-            select(Message)
+            select(Message.role, Message.content)
             .where(Message.conversation_id == conversation_id)
             .order_by(Message.created_at.asc())
             .limit(limit)
         )
-        return list(result.scalars().all())
+        rows = result.fetchall()
+        return [Message(role=r.role, content=r.content) for r in rows]
 
 
 async def get_user_conversations(
