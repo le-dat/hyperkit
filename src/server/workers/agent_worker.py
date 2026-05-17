@@ -10,6 +10,7 @@ from langchain_community.callbacks import get_openai_callback
 
 from db.chat_history import save_message, get_conversation_messages
 from state.memory import remember_entity
+from guards.budget import check_budget_and_alert
 from config import settings
 
 # Configurable Tier 1 memory window
@@ -54,6 +55,8 @@ async def run_agent_task(
             }),
         )
         await redis.hset(f"session:{turn_id}", "status", "ignored")
+        # Send terminal event so client doesn't hang
+        await redis.publish(f"sse:{turn_id}", json.dumps({"event": "ignored", "data": {}}))
         return
 
     await redis.hset(f"session:{turn_id}", mapping={
@@ -111,7 +114,7 @@ async def run_agent_task(
                             json.dumps({"event": "token_stream", "data": chunk}),
                         )
 
-                elif etype == "on_chain_start":
+                elif etype == "on_chain_start" and event.get("name") in ("process", "human_gate"):
                     await redis.publish(
                         f"sse:{turn_id}",
                         json.dumps({
@@ -121,10 +124,11 @@ async def run_agent_task(
                     )
 
                 elif "human_gate" in event.get("name", "") and etype == "on_chain_end":
+                    # Publish awaiting_approval as terminal event so SSE client transitions
                     await redis.publish(
                         f"sse:{turn_id}",
                         json.dumps({
-                            "event": "human_gate",
+                            "event": "human_gate_awaiting",
                             "data": {"turn_id": turn_id, "message": "Awaiting approval"},
                         }),
                     )
@@ -134,19 +138,22 @@ async def run_agent_task(
             tokens_used = cb.total_tokens
             cost_usd = cb.total_cost
 
-        # ── 4. Persist assistant response to PostgreSQL ────────────────
+        # ── 4. Budget check ──────────────────────────────────────────────
+        await check_budget_and_alert("run_agent_task", cost_usd)
+
+        # ── 5. Persist assistant response to PostgreSQL ─────────────────
         if full_response:
             await save_message(
                 conversation_id, user_id, "assistant", full_response,
                 tokens_used=tokens_used, cost_usd=cost_usd,
             )
 
-        # ── 5. Extract entities to Tier 3 memory ───────────────────────
+        # ── 6. Extract entities to Tier 3 memory ───────────────────────
         await remember_entity(
             redis, conversation_id, "last_response", full_response[:200],
         )
 
-        # ── 6. Signal completion ─────────────────────────────────────────
+        # ── 7. Signal completion ─────────────────────────────────────────
         await redis.publish(
             f"sse:{turn_id}",
             json.dumps({
@@ -164,28 +171,35 @@ async def run_agent_task(
         await redis.hset(f"session:{turn_id}", "status", "failed")
         raise
     finally:
-        # Always release the lock — only if we hold it
-        current_lock = await redis.get(stream_lock_key)
-        if current_lock == turn_id:
-            await redis.delete(stream_lock_key)
+        # Atomic lock release via Lua script — avoids race between get and delete
+        await redis.eval(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+            1, stream_lock_key, turn_id,
+        )
+
+
+def _parse_redis_url(redis_url: str) -> dict:
+    """Parse redis:// URL into RedisSettings dict for WorkerSettings."""
+    from urllib.parse import urlparse
+    parsed = urlparse(redis_url)
+    return {
+        "host": parsed.hostname or "localhost",
+        "port": parsed.port or 6379,
+        "database": int(parsed.path.lstrip("/") or 0),
+    }
 
 
 class WorkerSettings:
     """ARQ worker configuration."""
 
     functions = [run_agent_task]
-    redis_settings = {
-        "host": "localhost",
-        "port": 6379,
-        "database": 0,
-    }
+    redis_settings = _parse_redis_url(settings.redis_url)
     max_jobs = 10
     job_timeout = 300  # 5 minutes max per task
 
     @classmethod
     async def on_startup(cls, ctx: dict):
-        redis_url = settings.redis_url
-        ctx["redis"] = await aioredis.from_url(redis_url, decode_responses=True)
+        ctx["redis"] = await aioredis.from_url(settings.redis_url, decode_responses=True)
 
     @classmethod
     async def on_shutdown(cls, ctx: dict):

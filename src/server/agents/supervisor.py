@@ -46,13 +46,13 @@ def node_process(state: AgentState) -> dict:
             "errors": [],  # clear any prior errors on success
         }
     except Exception as e:
-        # Cap errors at last 3 to prevent unbounded growth in long conversations
+        # Cap errors and attempts at 3 to prevent unbounded growth
         prior = state.get("errors", [])
         errors = [str(e)] + prior
         errors = errors[:3]
         return {
             "errors": errors,
-            "attempts": state.get("attempts", 0) + 1,
+            "attempts": min(state.get("attempts", 0) + 1, MAX_ATTEMPTS),
         }
 
 

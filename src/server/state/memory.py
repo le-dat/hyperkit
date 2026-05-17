@@ -54,20 +54,11 @@ async def recall_entity(
     redis: aioredis.Redis, conv_id: str, key: str
 ) -> str | None:
     """Recall entity without user having to repeat it."""
-    val = await redis.hget(f"session:{conv_id}:entities", key)
-    if val is None:
-        return None
-    return val.decode() if isinstance(val, bytes) else val
+    return await redis.hget(f"session:{conv_id}:entities", key)
 
 
 async def recall_all_entities(
     redis: aioredis.Redis, conv_id: str
 ) -> dict[str, str]:
     """Recall all entities for a conversation."""
-    raw = await redis.hgetall(f"session:{conv_id}:entities")
-    decoded = {}
-    for k, v in raw.items():
-        k_str = k.decode() if isinstance(k, bytes) else k
-        v_str = v.decode() if isinstance(v, bytes) else v
-        decoded[k_str] = v_str
-    return decoded
+    return dict(await redis.hgetall(f"session:{conv_id}:entities"))

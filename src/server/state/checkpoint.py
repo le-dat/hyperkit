@@ -14,7 +14,7 @@ the module is first imported.
 import os
 from config import settings
 
-IS_PROD = os.getenv("ENV") == "production"
+IS_PROD = os.getenv("ENV") in ("production", "prod")
 
 # Cached instances — created once and reused.
 _postgres_checkpointer = None
@@ -38,14 +38,15 @@ def get_checkpointer():
 
         from langgraph.checkpoint.postgres import PostgresSaver
 
-        # Sử dụng settings.database_url của Pydantic (hỗ trợ .env và các alias khác nhau)
+        # Use settings.database_url via Pydantic (supports .env and various aliases)
         database_url = settings.database_url
         if not database_url:
             raise ValueError(
                 "DATABASE_URL or CHAT_DATABASE_URL must be set in production"
             )
-        
-        # PostgresSaver.from_conn_string là một context manager, cần __enter__() để lấy saver thực tế
+
+        # PostgresSaver.from_conn_string is a context manager;
+        # call __enter__() to get the actual saver instance
         _postgres_context = PostgresSaver.from_conn_string(database_url)
         saver = _postgres_context.__enter__()
         saver.setup()

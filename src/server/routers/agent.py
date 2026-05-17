@@ -2,31 +2,17 @@
 
 import uuid
 import json
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from arq import create_pool
-from arq.connections import RedisSettings
 
 from auth.clerk import get_current_user_dep
 from db.chat_history import ensure_conversation, save_message, _verify_ownership
 from guards.input import guard_input
 from agents.supervisor import graph
-from config import settings
 
 
 router = APIRouter(prefix="/agent", tags=["agent"])
-
-
-def _parse_redis_url(redis_url: str) -> RedisSettings:
-    """Parse settings.redis_url into RedisSettings for ARQ."""
-    parsed = urlparse(redis_url)
-    return RedisSettings(
-        host=parsed.hostname or "localhost",
-        port=parsed.port or 6379,
-        database=int(parsed.path.lstrip("/") or 0),
-    )
 
 
 class InvokeRequest(BaseModel):
@@ -56,18 +42,14 @@ async def invoke(body: InvokeRequest, request: Request, user: str = Depends(get_
     })
     await redis.expire(f"session:{turn_id}", 3600)
 
-    # Enqueue ARQ job — pool is closed immediately after use
-    pool = await create_pool(_parse_redis_url(settings.redis_url))
-    try:
-        await pool.enqueue_job(
-            "run_agent_task",
-            turn_id=turn_id,
-            conversation_id=conversation_id,
-            user_id=user,
-            message=message,
-        )
-    finally:
-        await pool.close()
+    # Enqueue ARQ job using the cached pool from app startup
+    await request.app.state.arq_pool.enqueue_job(
+        "run_agent_task",
+        turn_id=turn_id,
+        conversation_id=conversation_id,
+        user_id=user,
+        message=message,
+    )
 
     return {
         "turn_id": turn_id,

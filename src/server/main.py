@@ -93,6 +93,18 @@ async def lifespan(app: FastAPI):
         structlog.get_logger().error("redis_pools_startup_failed", error=str(e))
         raise RedisConnectionError(f"Redis connection pools failed: {e}")
 
+    # Initialize cached ARQ pool for agent task enqueueing
+    from arq import create_pool
+    from arq.connections import RedisSettings
+    from urllib.parse import urlparse
+
+    parsed = urlparse(settings.redis_url)
+    app.state.arq_pool = await create_pool(RedisSettings(
+        host=parsed.hostname or "localhost",
+        port=parsed.port or 6379,
+        database=int(parsed.path.lstrip("/") or 0),
+    ))
+
     structlog.get_logger().info("startup_complete", service="ai-chatbot-backend")
     yield
 
@@ -100,6 +112,7 @@ async def lifespan(app: FastAPI):
     from db.models import engine as db_engine
     from state.checkpoint import cleanup_checkpointer
     cleanup_checkpointer()
+    await app.state.arq_pool.close()
     await app.state.redis_stream.close()
     await app.state.redis_worker.close()
     await app.state.redis_cache.close()
@@ -128,4 +141,8 @@ app.middleware("http")(log_requests)
 # Routers
 app.include_router(system.router, tags=["system"])
 from routers import agent  # noqa: F401
+from routers import sse  # noqa: F401
+from routers import history  # noqa: F401
 app.include_router(agent.router, prefix="/agent", tags=["agent"])
+app.include_router(sse.router, prefix="/sse", tags=["sse"])
+app.include_router(history.router, prefix="/history", tags=["history"])
