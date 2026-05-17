@@ -98,6 +98,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown: close all Redis pools and dispose DB engine
     from db.models import engine as db_engine
+    from state.checkpoint import cleanup_checkpointer
+    cleanup_checkpointer()
     await app.state.redis_stream.close()
     await app.state.redis_worker.close()
     await app.state.redis_cache.close()

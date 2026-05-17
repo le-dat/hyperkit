@@ -57,11 +57,12 @@ async def get_conversation_messages(
         result = await db.execute(
             select(Message.role, Message.content)
             .where(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at.asc())
+            .order_by(Message.created_at.desc())  # Lấy tin nhắn mới nhất trước
             .limit(limit)
         )
         rows = result.fetchall()
-        return [Message(role=r.role, content=r.content) for r in rows]
+        # Đảo ngược lại danh sách để trả về đúng thứ tự thời gian tăng dần
+        return [Message(role=r.role, content=r.content) for r in reversed(rows)]
 
 
 async def get_user_conversations(

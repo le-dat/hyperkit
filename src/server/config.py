@@ -17,12 +17,16 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: str = "redis://localhost:6379"  # include password inline: redis://:pass@host:port
+    entity_ttl_seconds: int = 86400  # 24h TTL for entity memory
 
     # LLM
     llm_provider: str = "openai"  # "openai" | "anthropic" | "local"
     openai_api_key: str = ""
     anthropic_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+    anthropic_model: str = "claude-sonnet-4-20250514"
     vllm_base_url: str = "http://localhost:8080/v1"  # on-premise
+    vllm_model: str = ""  # model name served by vLLM — required when provider="local"
 
     # Guardrails
     max_cost_per_request_usd: float = 5.0
