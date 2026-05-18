@@ -8,6 +8,7 @@ import redis.asyncio as aioredis
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.callbacks import get_openai_callback
 
+from db.models import init_db
 from db.chat_history import save_message, get_conversation_messages
 from state.memory import remember_entity
 from guards.budget import check_budget_and_alert
@@ -116,11 +117,28 @@ async def run_agent_task(
                 if etype == "on_chat_model_stream":
                     chunk = event["data"]["chunk"].content
                     if chunk:
-                        full_response += chunk
-                        await redis.publish(
-                            f"sse:{turn_id}",
-                            json.dumps({"event": "token_stream", "data": chunk}),
-                        )
+                        # chunk can be str or list of content blocks
+                        if isinstance(chunk, list):
+                            for block in chunk:
+                                if isinstance(block, dict) and block.get("type") == "text":
+                                    text = block.get("text", "")
+                                    full_response += text
+                                    await redis.publish(
+                                        f"sse:{turn_id}",
+                                        json.dumps({"event": "token_stream", "data": text}),
+                                    )
+                                elif isinstance(block, str):
+                                    full_response += block
+                                    await redis.publish(
+                                        f"sse:{turn_id}",
+                                        json.dumps({"event": "token_stream", "data": block}),
+                                    )
+                        else:
+                            full_response += chunk
+                            await redis.publish(
+                                f"sse:{turn_id}",
+                                json.dumps({"event": "token_stream", "data": chunk}),
+                            )
 
                 elif etype == "on_chain_start" and event.get("name") in ("process", "human_gate"):
                     await redis.publish(
@@ -224,6 +242,7 @@ class WorkerSettings:
     job_timeout = 300  # 5 minutes max per task
 
     async def on_startup(ctx: dict):
+        await init_db(settings.database_url)
         ctx["redis"] = await aioredis.from_url(settings.redis_url, decode_responses=True)
 
     async def on_shutdown(ctx: dict):

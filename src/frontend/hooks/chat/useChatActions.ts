@@ -176,7 +176,6 @@ export function useChatActions({
 
           case "error":
           case StreamEventType.Error: {
-            console.error("Stream error:", data.message);
             const errorBuffer = deltaBufferRef.current.get(aiMsgId) || "";
             cleanupMessageResources(aiMsgId);
 

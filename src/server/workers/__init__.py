@@ -166,23 +166,6 @@ async def run_agent_task(
             await redis.delete(stream_lock_key)
 
 
-class WorkerSettings:
-    """ARQ worker configuration."""
-
-    functions = [run_agent_task]
-    redis_settings = {
-        "host": "localhost",
-        "port": 6379,
-        "database": 0,
-    }
-    max_jobs = 10
-    job_timeout = 300  # 5 minutes max per task
-
-    @classmethod
-    async def on_startup(cls, ctx: dict):
-        redis_url = settings.redis_url
-        ctx["redis"] = await aioredis.from_url(redis_url, decode_responses=True)
-
-    @classmethod
-    async def on_shutdown(cls, ctx: dict):
-        await ctx["redis"].close()
+# Re-export WorkerSettings from agent_worker to avoid duplicate definitions
+# and ensure arq uses the correct settings.redis_url configuration
+from workers.agent_worker import WorkerSettings

@@ -4,7 +4,7 @@ from typing import TypedDict, Annotated
 import operator
 import os
 
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import AIMessage
 from langchain_core.tools import StructuredTool
 from langgraph.graph import StateGraph, END
 

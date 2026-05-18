@@ -7,11 +7,11 @@ from functools import lru_cache
 import httpx
 import jwt
 from fastapi import HTTPException, Request
-from jwt import ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError
+from jwt import ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError, PyJWKClient
 
 
 # Module-level JWKS client cache (keyed by issuer URL)
-_jwks_cache: dict[str, "PyJWKClient"] = {}  # type: ignore[name-defined]
+_jwks_cache: dict[str, PyJWKClient] = {}
 
 
 @lru_cache(maxsize=1)
@@ -40,13 +40,13 @@ def _get_issuer() -> str:
     )
 
 
-def _get_jwks_client(issuer: str) -> "PyJWKClient":  # type: ignore[name-defined]
+def _get_jwks_client(issuer: str) -> PyJWKClient:
     """Get or create a cached PyJWKClient for the given issuer."""
     global _jwks_cache
     jwks_url = f"{issuer}/.well-known/jwks.json"
 
     if jwks_url not in _jwks_cache:
-        _jwks_cache[jwks_url] = jwt.PyJWKClient(jwks_url, cache_keys=True)
+        _jwks_cache[jwks_url] = PyJWKClient(jwks_url, cache_keys=True)
     return _jwks_cache[jwks_url]
 
 
