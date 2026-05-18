@@ -178,16 +178,17 @@ async def run_agent_task(
         )
 
 
-def _parse_redis_url(redis_url: str) -> dict:
-    """Parse redis:// URL into RedisSettings dict for WorkerSettings."""
+def _parse_redis_url(redis_url: str):
+    """Parse redis:// URL into RedisSettings for WorkerSettings."""
     from urllib.parse import urlparse
+    from arq.connections import RedisSettings
     parsed = urlparse(redis_url)
-    return {
-        "host": parsed.hostname or "localhost",
-        "port": parsed.port or 6379,
-        "database": int(parsed.path.lstrip("/") or 0),
-        "password": parsed.password,
-    }
+    return RedisSettings(
+        host=parsed.hostname or "localhost",
+        port=parsed.port or 6379,
+        database=int(parsed.path.lstrip("/") or 0),
+        password=parsed.password,
+    )
 
 
 class WorkerSettings:
@@ -198,10 +199,8 @@ class WorkerSettings:
     max_jobs = 10
     job_timeout = 300  # 5 minutes max per task
 
-    @classmethod
-    async def on_startup(cls, ctx: dict):
+    async def on_startup(ctx: dict):
         ctx["redis"] = await aioredis.from_url(settings.redis_url, decode_responses=True)
 
-    @classmethod
-    async def on_shutdown(cls, ctx: dict):
+    async def on_shutdown(ctx: dict):
         await ctx["redis"].close()

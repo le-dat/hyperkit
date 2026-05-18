@@ -1,0 +1,55 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { chatApiService } from "@/service/chatApiService";
+import { ChatSession } from "@/types";
+import { transformConversationsToChatSessions } from "@/lib/chat/messageTransformers";
+
+export function useConversations() {
+  const queryClient = useQueryClient();
+
+  const {
+    data: conversationsData,
+    isLoading: isHistoryLoading,
+    refetch: refetchConversations,
+  } = useQuery({
+    queryKey: ["conversations"],
+    queryFn: () => chatApiService.getConversations({ limit: 50, cursor: "" }),
+  });
+
+  const { mutateAsync: deleteConversation, isPending: isDeleting } =
+    useMutation({
+      mutationFn: (conversationId: string) =>
+        chatApiService.deleteConversation(conversationId),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      },
+    });
+
+  const { mutateAsync: updateConversation, isPending: isUpdating } =
+    useMutation({
+      mutationFn: ({
+        conversationId,
+        title,
+      }: {
+        conversationId: string;
+        title: string;
+      }) => chatApiService.updateConversationTitle(conversationId, title),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      },
+    });
+
+  const history: ChatSession[] =
+    conversationsData?.success && conversationsData.data
+      ? transformConversationsToChatSessions(conversationsData.data)
+      : [];
+
+  return {
+    history,
+    isHistoryLoading,
+    refetchConversations,
+    deleteConversation,
+    isDeleting,
+    updateConversation,
+    isUpdating,
+  };
+}

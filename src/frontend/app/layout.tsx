@@ -1,65 +1,40 @@
-import type { Metadata } from "next"
-import { ClerkProvider, SignInButton, SignOutButton, UserButton } from "@clerk/nextjs"
-import "./globals.css"
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import AppProvider from "@/provider";
+import { LOGO_PATH } from "@/lib/constants";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
-  title: "AI Chatbot",
-  description: "Hybrid AI chatbot with LangGraph agent",
-}
+  title: "Hyperkit",
+  description:
+    "Hyperkit is the AI-native workflow engine. Connect LLMs to your data, APIs, and smart contracts via Model Context Protocol.",
+  icons: {
+    icon: LOGO_PATH,
+  },
+};
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <body className="min-h-full flex flex-col">
-          <header
-            className="flex justify-between p-4 border-b"
-            style={{
-              borderColor: "var(--color-border-muted)",
-              backgroundColor: "var(--color-surface-base)",
-            }}
-          >
-            <h1
-              className="text-lg"
-              style={{
-                color: "var(--color-text-primary)",
-                fontWeight: "var(--font-weight-semibold)",
-              }}
-            >
-              AI Chatbot
-            </h1>
-            <SignInButton mode="modal">
-              <button
-                className="px-4 py-2 text-white rounded-[var(--radius-md)] text-sm font-medium"
-                style={{
-                  backgroundColor: "var(--color-interactive-primary)",
-                  transitionDuration: "var(--motion-duration-instant)",
-                }}
-              >
-                Sign In
-              </button>
-            </SignInButton>
-            <SignOutButton>
-              <button
-                className="px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium"
-                style={{
-                  backgroundColor: "var(--color-surface-muted)",
-                  color: "var(--color-text-primary)",
-                  transitionDuration: "var(--motion-duration-instant)",
-                }}
-              >
-                Sign Out
-              </button>
-            </SignOutButton>
-            <UserButton />
-          </header>
-          {children}
-        </body>
-      </html>
-    </ClerkProvider>
-  )
+    <html lang="en" suppressHydrationWarning>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        <AppProvider>{children}</AppProvider>
+      </body>
+    </html>
+  );
 }

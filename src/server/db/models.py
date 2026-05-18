@@ -25,13 +25,19 @@ def create_engine_and_session(database_url: str, pool_size: int = 10, max_overfl
 
 # These are set by init_db() called from main.py lifespan
 engine = None
-AsyncSessionLocal = None
+_session_factory = None
+
+
+def AsyncSessionLocal(*args, **kwargs):
+    if _session_factory is None:
+        raise RuntimeError("Database not initialized. Call init_db() first.")
+    return _session_factory(*args, **kwargs)
 
 
 def init_db(database_url: str):
-    global engine, AsyncSessionLocal
+    global engine, _session_factory
     from config import settings
-    engine, AsyncSessionLocal = create_engine_and_session(
+    engine, _session_factory = create_engine_and_session(
         database_url,
         pool_size=settings.db_pool_size,
         max_overflow=settings.db_max_overflow,

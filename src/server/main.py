@@ -149,13 +149,13 @@ app.add_middleware(
 app.middleware("http")(log_requests)
 
 # Routers
-app.include_router(system.router, tags=["system"])
+app.include_router(system.router, prefix="/v1", tags=["system"])
 from routers import agent
 from routers import sse
 from routers import history
 from routers import mcp
 
-app.include_router(agent.router)
-app.include_router(sse.router)
-app.include_router(history.router)
-app.include_router(mcp.router)
+app.include_router(agent.router, prefix="/v1")
+app.include_router(sse.router, prefix="/v1")
+app.include_router(history.router, prefix="/v1")
+app.include_router(mcp.router, prefix="/v1")
