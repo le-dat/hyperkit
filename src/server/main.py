@@ -103,6 +103,7 @@ async def lifespan(app: FastAPI):
         host=parsed.hostname or "localhost",
         port=parsed.port or 6379,
         database=int(parsed.path.lstrip("/") or 0),
+        password=parsed.password,
     ))
 
     # Build and cache MCP tools so the sync LangGraph node can use them
@@ -149,11 +150,12 @@ app.middleware("http")(log_requests)
 
 # Routers
 app.include_router(system.router, tags=["system"])
-from routers import agent  # noqa: F401
-from routers import sse  # noqa: F401
-from routers import history  # noqa: F401
-from routers import mcp  # noqa: F401
-app.include_router(agent.router, prefix="/agent", tags=["agent"])
-app.include_router(sse.router, prefix="/sse", tags=["sse"])
-app.include_router(history.router, prefix="/history", tags=["history"])
-app.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
+from routers import agent
+from routers import sse
+from routers import history
+from routers import mcp
+
+app.include_router(agent.router)
+app.include_router(sse.router)
+app.include_router(history.router)
+app.include_router(mcp.router)

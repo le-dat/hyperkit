@@ -11,6 +11,70 @@ Next.js App Router boilerplate with:
 
 ---
 
+## Design Tokens
+
+Apply these consistently across all frontend components. **Use semantic tokens — never raw hex values.**
+
+### Typography
+
+```
+font.family.primary  = pplxSans
+font.family.stack    = pplxSans, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, sans-serif
+font.size.base       = 16px
+font.weight.base     = 400
+font.lineHeight.base = 24px
+font.size.xs         = 14px
+font.size.sm         = 16px
+```
+
+### Color Palette
+
+```
+color.text.primary   = #27251e
+color.text.secondary = #27251e   (WCAG AA on surface.muted)
+color.text.muted     = #6b6b6b
+color.surface.base   = #ffffff
+color.surface.muted  = #fdfbfa
+color.surface.raised = rgb(0.152941 0.145098 0.117647)
+color.border.default = #271a00
+color.border.muted   = #e5e0d8
+color.focus.ring     = #000000
+color.interactive.primary   = #2563eb   (blue-600)
+color.interactive.primaryHover = #1d4ed8 (blue-700)
+color.interactive.destructive  = #dc2626 (red-600)
+```
+
+### Spacing Scale
+
+```
+space.1 = 8px
+space.2 = 12px
+space.3 = 16px
+space.4 = 20px
+space.5 = 24px
+space.6 = 32px
+```
+
+### Radius / Shadow / Motion
+
+```
+radius.xs  = 4px
+radius.sm  = 6px
+radius.md  = 8px
+radius.lg  = 12px
+radius.xl  = 9999px   (pill)
+
+shadow.sm  = 0 1px 2px 0 rgba(0,0,0,0.05)
+shadow.md  = 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)
+shadow.lg  = 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)
+
+motion.duration.instant = 150ms
+motion.duration.fast    = 300ms
+motion.easing.default   = ease-out
+```
+
+---
+
 ## File Structure
 
 ```
@@ -182,11 +246,39 @@ curl http://localhost:3000/api/history \
 # → proxied from FastAPI
 ```
 
-## Verification Checklist
+## Accessibility Requirements (WCAG 2.2 AA)
 
-- [ ] `npm run dev` starts with no TypeScript errors
-- [ ] `BACKEND_URL` not visible in browser Network tab (only `/api/*` calls)
-- [ ] `GET /api/history` proxies correctly to FastAPI
-- [ ] SSE proxy streams events to browser
+All components must meet these requirements:
+
+- **Focus visible**: Every interactive element must show a visible focus ring using `color.focus.ring (#000000)` at `radius.sm (6px)` offset.
+- **Contrast**: Text on backgrounds must maintain minimum 4.5:1 contrast ratio. Muted surfaces may use `color.text.secondary (#27251e)` on `color.surface.muted (#fdfbfa)`.
+- **Keyboard navigation**: All interactive elements must be reachable and operable via keyboard (Tab, Enter, Space, Escape).
+- **Motion**: Respect `motion.duration.instant (150ms)` and `motion.duration.fast (300ms)`. Provide `prefers-reduced-motion` fallback.
+- **Touch targets**: Minimum 44×44px touch area for mobile.
+
+---
+
+## Anti-Patterns
+
+- **Do not** use raw hex values outside of token definition blocks — reference tokens by name in implementation.
+- **Do not** use `gray-500`, `gray-600` etc. in class strings — use defined semantic tokens.
+- **Do not** introduce one-off spacing values outside the defined spacing scale.
+- **Do not** allow hidden focus indicators — `focus:outline-none` must always be paired with `focus:ring-*`.
+- **Do not** use `motion.duration` values outside the defined scale (150ms / 300ms).
+
+---
+
+## QA Checklist
+
+- [ ] Typography matches token spec (font size, line height, weight)
+- [ ] Color tokens used — no raw hex outside token definition blocks
+- [ ] Focus rings visible on all interactive elements
+- [ ] WCAG 2.2 AA contrast on all text/background combinations
+- [ ] Keyboard navigation works for all interactive elements
+- [ ] `prefers-reduced-motion` respected for animations
+- [ ] Touch targets ≥ 44×44px on mobile
+- [ ] All buttons/inputs have default, hover, focus-visible, active, disabled, loading states
+- [ ] Spacing uses `space.*` scale only
+- [ ] Border radius uses `radius.*` scale only
 
 > ➡️ Next: [02-auth.md](./02-auth.md)

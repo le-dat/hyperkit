@@ -8,7 +8,7 @@ from typing import Any
 
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.client.http import http_client
+from mcp.client.sse import sse_client
 
 
 logger = structlog.get_logger(__name__)
@@ -68,7 +68,7 @@ class MCPRegistry:
         elif cfg.transport == "http":
             if not cfg.url:
                 raise ValueError(f"http transport for {name} requires url")
-            read, write = await http_client(cfg.url).__aenter__()
+            read, write = await sse_client(cfg.url).__aenter__()
         else:
             raise ValueError(f"Unknown transport: {cfg.transport}")
 

@@ -186,6 +186,7 @@ def _parse_redis_url(redis_url: str) -> dict:
         "host": parsed.hostname or "localhost",
         "port": parsed.port or 6379,
         "database": int(parsed.path.lstrip("/") or 0),
+        "password": parsed.password,
     }
 
 

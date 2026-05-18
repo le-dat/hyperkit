@@ -8,6 +8,55 @@
 
 ---
 
+## Design Tokens (applied below)
+
+All chat components inherit tokens from [01-setup.md](./01-setup.md). Component-specific additions:
+
+### Message Bubble States
+
+```
+message.user.bg           = color.interactive.primary    (#2563eb)
+message.user.text         = #ffffff
+message.user.radius       = radius.lg (12px), corner-br = radius.xs (4px)
+message.assistant.bg      = color.surface.muted          (#fdfbfa)
+message.assistant.text    = color.text.primary           (#27251e)
+message.assistant.radius  = radius.lg (12px), corner-bl = radius.xs (4px)
+message.streaming.cursor  = currentColor, w-1, h-4, animate-pulse
+```
+
+### Input Field States
+
+```
+input.bg             = color.surface.base  (#ffffff)
+input.border         = color.border.default (#271a00)
+input.border.muted   = color.border.muted  (#e5e0d8)
+input.placeholder    = #9ca3af
+input.focus.ring      = color.focus.ring    (#000000)
+input.disabled.bg     = color.surface.muted (#fdfbfa)
+input.disabled.opacity = 0.5
+```
+
+### Loading Indicator
+
+```
+loading.dot.size      = 8px (w-2 h-2)
+loading.dot.color     = #9ca3af
+loading.dot.interval  = 150ms stagger
+loading.dot.animation = bounce
+```
+
+### Modal Overlay
+
+```
+modal.overlay.bg      = rgba(0, 0, 0, 0.5)
+modal.surface.bg       = color.surface.base (#ffffff)
+modal.surface.radius   = radius.lg (12px)
+modal.surface.shadow   = shadow.lg
+modal.padding          = space.5 (24px)
+```
+
+---
+
 ## Step 3.1 — useChat Hook
 
 ```ts
@@ -162,12 +211,13 @@ export default function ChatWindow({ conversationId }: Props) {
         {messages.map(m => <MessageBubble key={m.id} message={m} />)}
         {isLoading && !messages.some(m => m.isStreaming) && (
           <div className="flex gap-1 px-4">
-            <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
-            <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
-            <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+            {/* dots: 8px, #9ca3af, 150ms stagger, bounce */}
+            <span className="w-2 h-2 bg-[#9ca3af] rounded-full animate-bounce [animation-delay:0ms]" />
+            <span className="w-2 h-2 bg-[#9ca3af] rounded-full animate-bounce [animation-delay:150ms]" />
+            <span className="w-2 h-2 bg-[#9ca3af] rounded-full animate-bounce [animation-delay:300ms]" />
           </div>
         )}
-        {error && <p className="text-red-500 text-sm px-4">{error}</p>}
+        {error && <p className="text-[#dc2626] text-sm px-4">{error}</p>}
       </div>
 
       {/* Input */}
@@ -177,14 +227,15 @@ export default function ChatWindow({ conversationId }: Props) {
           onChange={e => setInput(e.target.value)}
           placeholder="Type a message..."
           disabled={isLoading}
-          className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2
-                     focus:ring-blue-500 disabled:opacity-50"
+          className="flex-1 px-4 py-2 border rounded-[8px] focus:outline-none focus:ring-2
+                     focus:ring-[#000000] disabled:opacity-50
+                     bg-white border-[#271a00] disabled:bg-[#fdfbfa]"
         />
         <button
           type="submit"
           disabled={isLoading || !input.trim()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700
-                     disabled:opacity-50 transition"
+          className="px-4 py-2 bg-[#2563eb] text-white rounded-[8px] hover:bg-[#1d4ed8]
+                     disabled:opacity-50 transition duration-[150ms]"
         >
           Send
         </button>
@@ -211,15 +262,19 @@ export default function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user"
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[75%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap
-        ${isUser
-          ? "bg-blue-600 text-white rounded-br-sm"
-          : "bg-gray-100 text-gray-900 rounded-bl-sm"
-        }`}
+      <div
+        className={`max-w-[75%] px-4 py-2 text-sm whitespace-pre-wrap
+          ${isUser
+            // bg: #2563eb, text: #fff, radius: 12px, bottom-right: 4px
+            ? "bg-[#2563eb] text-white rounded-[12px] rounded-br-[4px]"
+            // bg: #fdfbfa, text: #27251e, radius: 12px, bottom-left: 4px
+            : "bg-[#fdfbfa] text-[#27251e] rounded-[12px] rounded-bl-[4px]"
+          }`}
       >
         {message.content}
         {message.isStreaming && (
-          <span className="inline-block w-1 h-4 bg-current ml-1 animate-pulse" />
+          // streaming cursor: 1px wide, 16px tall, current color, pulse
+          <span className="inline-block w-px h-4 bg-current ml-1 animate-pulse" />
         )}
       </div>
     </div>
@@ -237,24 +292,24 @@ export default function HumanGateModal({
   onApprove, onReject
 }: { onApprove: () => void; onReject: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Agent Approval Required</h2>
-        <p className="text-gray-600 text-sm mb-6">
+    <div className="fixed inset-0 bg-[rgba(0,0,0,0.5)] flex items-center justify-center z-50">
+      <div className="bg-white rounded-[12px] p-6 max-w-sm w-full shadow-lg">
+        <h2 className="text-lg font-semibold text-[#27251e] mb-2">Agent Approval Required</h2>
+        <p className="text-[#6b6b6b] text-sm mb-6">
           The AI wants to take an action that requires your approval. Do you want to proceed?
         </p>
         <div className="flex gap-3">
           <button
             onClick={onReject}
-            className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-700
-                       hover:bg-gray-50 transition"
+            className="flex-1 py-2 border border-[#e5e0d8] rounded-[8px] text-[#27251e]
+                       hover:bg-[#fdfbfa] transition duration-[150ms]"
           >
             Reject
           </button>
           <button
             onClick={onApprove}
-            className="flex-1 py-2 bg-blue-600 text-white rounded-lg
-                       hover:bg-blue-700 transition"
+            className="flex-1 py-2 bg-[#2563eb] text-white rounded-[8px]
+                       hover:bg-[#1d4ed8] transition duration-[150ms]"
           >
             Approve
           </button>
@@ -267,14 +322,18 @@ export default function HumanGateModal({
 
 ---
 
-## Verification
+## Verification Checklist
 
-```
-1. Login → /chat
-2. Type "Hello" → message appears instantly
-3. AI response streams token by token in real-time
-4. Blinking cursor shows while streaming
-5. Send new message to same conversation → AI remembers context
-```
+- [ ] Input field: default, focus-visible (ring), typing, disabled states
+- [ ] Send button: default, hover, disabled, loading states
+- [ ] Message bubbles: user (right, blue) vs assistant (left, muted) render correctly
+- [ ] Streaming cursor appears and pulses while AI is generating
+- [ ] Loading dots render with correct timing (150ms stagger)
+- [ ] Human gate modal: overlay, surface, buttons match tokens
+- [ ] Keyboard navigation: Tab through input → button → modal buttons
+- [ ] `motion.duration.instant (150ms)` used for all interactive transitions
+- [ ] `radius.md (8px)` used on all interactive surfaces
+- [ ] Error state shows red text (#dc2626) with correct token
+- [ ] `prefers-reduced-motion`: bounce animation degrades gracefully
 
 > ➡️ Next: [04-history.md](./04-history.md)

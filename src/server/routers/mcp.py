@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, model_validator
 
 from auth.clerk import get_current_user_dep
-from mcp.registry import registry, MCPServer
+from mcp_registry.registry import registry, MCPServer
 
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])

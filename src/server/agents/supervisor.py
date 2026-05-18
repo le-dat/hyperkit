@@ -106,7 +106,7 @@ graph = builder.compile(
 
 async def build_mcp_tools() -> list[StructuredTool]:
     """Discover all tools from registered MCP servers and wrap them as StructuredTools."""
-    from mcp.registry import registry
+    from mcp_registry.registry import registry
 
     mcp_tools_list = await registry.all_tools()
     result: list[StructuredTool] = []
