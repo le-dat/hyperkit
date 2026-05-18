@@ -1,0 +1,141 @@
+"""Agent router — POST /agent/invoke, approve, reject, state endpoints."""
+
+from typing import Any
+import uuid
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+
+from auth.clerk import get_current_user_dep
+from db.chat_history import ensure_conversation, save_message, _verify_ownership
+from guards.input import guard_input
+from agents.supervisor import graph
+from core.schemas import ApiSuccess
+
+
+router = APIRouter(prefix="/agent", tags=["agent"])
+
+
+class InvokeRequest(BaseModel):
+    conversation_id: str | None = None  # None = new conversation
+    message: str
+
+
+class InvokeResponse(BaseModel):
+    turn_id: str
+    conversation_id: str
+    sse_url: str
+
+
+class StatusResponse(BaseModel):
+    status: str
+
+
+class StateResponse(BaseModel):
+    session: dict[str, Any]
+    agent_next: list[str]
+
+
+@router.post("/invoke", response_model=ApiSuccess[InvokeResponse])
+async def invoke(body: InvokeRequest, request: Request, user: str = Depends(get_current_user_dep)):
+    """Enqueue a new agent task."""
+    conversation_id = body.conversation_id or str(uuid.uuid4())
+    turn_id = str(uuid.uuid4())
+
+    # Sanitize input
+    message = guard_input(body.message, user_id=user)
+
+    # Ensure conversation exists and save user message
+    await ensure_conversation(conversation_id, user, first_message=message)
+    await save_message(conversation_id, user, "user", message)
+
+    # Write Redis session
+    redis = request.app.state.redis
+    await redis.hset(f"session:{turn_id}", mapping={
+        "status": "queued",
+        "conversation_id": conversation_id,
+        "user_id": user,
+    })
+    await redis.expire(f"session:{turn_id}", 3600)
+
+    # Enqueue ARQ job using the cached pool from app startup
+    await request.app.state.arq_pool.enqueue_job(
+        "run_agent_task",
+        turn_id=turn_id,
+        conversation_id=conversation_id,
+        user_id=user,
+        message=message,
+    )
+
+    return ApiSuccess(
+        data=InvokeResponse(
+            turn_id=turn_id,
+            conversation_id=conversation_id,
+            sse_url=f"/sse/{turn_id}",
+        )
+    )
+
+
+@router.post("/{turn_id}/approve", response_model=ApiSuccess[StatusResponse])
+async def approve(turn_id: str, request: Request, user: str = Depends(get_current_user_dep)):
+    """Resume a human-gate interrupted agent after approval."""
+    redis = request.app.state.redis
+    session = await redis.hgetall(f"session:{turn_id}")
+    if not session:
+        raise HTTPException(404, "Turn not found")
+    if session.get("user_id") != user:
+        raise HTTPException(403, "Forbidden")
+
+    # Verify user owns the conversation
+    if not await _verify_ownership(session["conversation_id"], user):
+        raise HTTPException(403, "Forbidden")
+
+    config = {"configurable": {"thread_id": session["conversation_id"]}}
+    # Pass approved=True to update checkpointed state and allow graph to continue
+    await graph.ainvoke({"messages": [], "approved": True}, config=config)
+    await redis.hset(f"session:{turn_id}", "status", "resumed")
+    return ApiSuccess(data=StatusResponse(status="resumed"))
+
+
+@router.post("/{turn_id}/reject", response_model=ApiSuccess[StatusResponse])
+async def reject(turn_id: str, request: Request, user: str = Depends(get_current_user_dep)):
+    """Reject a human-gate interrupted agent."""
+    redis = request.app.state.redis
+    session = await redis.hgetall(f"session:{turn_id}")
+    if not session:
+        raise HTTPException(404, "Turn not found")
+    if session.get("user_id") != user:
+        raise HTTPException(403, "Forbidden")
+
+    # Verify user owns the conversation
+    if not await _verify_ownership(session["conversation_id"], user):
+        raise HTTPException(403, "Forbidden")
+
+    await redis.hset(f"session:{turn_id}", "status", "rejected")
+    await redis.publish(f"sse:{turn_id}", json.dumps({"event": "rejected", "data": {}}))
+    return ApiSuccess(data=StatusResponse(status="rejected"))
+
+
+@router.get("/{turn_id}/state", response_model=ApiSuccess[StateResponse])
+async def get_state(turn_id: str, request: Request, user: str = Depends(get_current_user_dep)):
+    """Get agent state and session info for a turn."""
+    redis = request.app.state.redis
+    session = await redis.hgetall(f"session:{turn_id}")
+    if not session:
+        raise HTTPException(404, "Turn not found")
+    if session.get("user_id") != user:
+        raise HTTPException(403, "Forbidden")
+
+    # Verify user owns the conversation
+    if not await _verify_ownership(session["conversation_id"], user):
+        raise HTTPException(403, "Forbidden")
+
+    config = {"configurable": {"thread_id": session["conversation_id"]}}
+    state = graph.get_state(config)
+    return ApiSuccess(
+        data=StateResponse(
+            session=dict(session),
+            agent_next=list(state.next),
+        )
+    )

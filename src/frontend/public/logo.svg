@@ -1,0 +1,41 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Hyperkit Geometric Icon: Three Layered Squares -->
+  <!-- Full accent color with rounded corners, rotated 45 degrees -->
+
+  <g transform="rotate(45 24 24)">
+    <!-- Outer square - 62.5% of container (30px) -->
+    <rect
+      x="9"
+      y="9"
+      width="30"
+      height="30"
+      fill="none"
+      stroke="#ff3e00"
+      stroke-width="2"
+      rx="2"
+    />
+
+    <!-- Middle square - 50% of container (24px) -->
+    <rect
+      x="12"
+      y="12"
+      width="24"
+      height="24"
+      fill="none"
+      stroke="#ff3e00"
+      stroke-width="2"
+      rx="2"
+    />
+
+    <!-- Inner square - 31.25% of container (15px) -->
+    <rect
+      x="16.5"
+      y="16.5"
+      width="15"
+      height="15"
+      fill="#ff3e00"
+      fill-opacity="0.2"
+      rx="2"
+    />
+  </g>
+</svg>

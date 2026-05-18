@@ -123,12 +123,24 @@ async def run_agent_task(
     ARQ task — runs LangGraph agent, streams events to Redis PubSub.
     
     Flow:
-      1. Load history (Tier 1 memory)
-      2. Run graph.astream_events()
-      3. Publish token_stream → sse:{turn_id}
-      4. On complete: save to PostgreSQL + extract entities
+      1. Streaming Deduplication Check (Redis Lock)
+      2. Load history (Tier 1 memory)
+      3. Run graph.astream_events() with periodic Cancellation Check
+      4. Publish token_stream → sse:{turn_id}
+      5. On complete: save to PostgreSQL + extract entities + release lock
     """
     redis: aioredis.Redis = ctx["redis"]
+    stream_lock_key = f"lock:stream:{conversation_id}"
+
+    # ── 1. Streaming Deduplication Check ─────────────────────────────
+    # Set lock for 30s to prevent client double-clicks/rapid reconnect loops
+    is_locked = await redis.set(stream_lock_key, turn_id, ex=30, nx=True)
+    if not is_locked:
+        # Already running stream for this conversation
+        await redis.publish(f"sse:{turn_id}",
+            json.dumps({"event": "warning", "data": {"message": "Streaming already active for this conversation"}}))
+        await redis.hset(f"session:{turn_id}", "status", "ignored")
+        return
 
     await redis.hset(f"session:{turn_id}", mapping={
         "status": "running",
@@ -136,7 +148,7 @@ async def run_agent_task(
     })
 
     try:
-        # ── 1. Build messages with history ────────────────────────────
+        # ── 2. Build messages with history ────────────────────────────
         history_rows = await get_conversation_messages(conversation_id, user_id, limit=5)
         messages = [
             HumanMessage(content=r.content) if r.role == "user" else AIMessage(content=r.content)
@@ -144,7 +156,7 @@ async def run_agent_task(
         ]
         messages.append(HumanMessage(content=message))
 
-        # ── 2. Stream agent with cost tracking ───────────────────────
+        # ── 3. Stream agent with cost and cancellation tracking ───────
         config = {"configurable": {"thread_id": conversation_id}}
         full_response = ""
         tokens_used = 0
@@ -156,9 +168,17 @@ async def run_agent_task(
                  "conversation_id": conversation_id, "turn_id": turn_id,
                  "user_id": user_id, "attempts": 0,
                  "errors": [], "confidence": 1.0, "approved": False},
-                config=config,
-                version="v2",
+                 config=config,
+                 version="v2",
             ):
+                # A. Periodic Job Cancellation Check
+                # If front-end signals cancel, cancel:{turn_id} exists → clean abort
+                if await redis.exists(f"cancel:{turn_id}"):
+                    await redis.publish(f"sse:{turn_id}",
+                        json.dumps({"event": "cancelled", "data": {"message": "Task cancelled by user"}}))
+                    await redis.hset(f"session:{turn_id}", "status", "cancelled")
+                    return
+
                 etype = event["event"]
 
                 if etype == "on_chat_model_stream":
@@ -181,15 +201,15 @@ async def run_agent_task(
             tokens_used = cb.total_tokens
             cost_usd    = cb.total_cost
 
-        # ── 3. Persist to PostgreSQL ──────────────────────────────────
+        # ── 4. Persist to PostgreSQL ──────────────────────────────────
         await save_message(conversation_id, user_id, "assistant", full_response,
                            tokens_used=tokens_used, cost_usd=cost_usd)
 
-        # ── 4. Extract entity to Tier 3 memory ───────────────────────
+        # ── 5. Extract entity to Tier 3 memory ───────────────────────
         # (in production: use LLM to extract, here is simple heuristic)
         await remember_entity(redis, conversation_id, "last_response", full_response[:200])
 
-        # ── 5. Signal complete ─────────────────────────────────────────
+        # ── 6. Signal complete ─────────────────────────────────────────
         await redis.publish(f"sse:{turn_id}",
             json.dumps({"event": "agent_complete",
                         "data": {"tokens": tokens_used, "cost_usd": cost_usd}}))
@@ -200,6 +220,12 @@ async def run_agent_task(
             json.dumps({"event": "error", "data": {"message": str(e)}}))
         await redis.hset(f"session:{turn_id}", "status", "failed")
         raise
+    finally:
+        # ALWAYS release the lock to enable subsequent prompts
+        # Only delete lock if we are the turn that created it
+        current_lock = await redis.get(stream_lock_key)
+        if current_lock == turn_id:
+            await redis.delete(stream_lock_key)
 
 
 class WorkerSettings:

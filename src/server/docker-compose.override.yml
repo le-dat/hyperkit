@@ -7,3 +7,13 @@ services:
   redis:
     ports:
       - "127.0.0.1:6379:6379"
+
+  backend:
+    volumes:
+      - .:/app
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  worker:
+    volumes:
+      - .:/app
+    command: ["python", "-m", "arq", "workers.WorkerSettings"]

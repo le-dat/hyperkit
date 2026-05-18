@@ -7,7 +7,7 @@ from functools import lru_cache
 import httpx
 import jwt
 from fastapi import HTTPException, Request
-from jwt import PyJWKClient, ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError
+from jwt import ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError, PyJWKClient
 
 
 # Module-level JWKS client cache (keyed by issuer URL)
@@ -24,7 +24,7 @@ def _get_issuer() -> str:
     if settings.clerk_frontend_api:
         return f"https://{settings.clerk_frontend_api}"
 
-    # Last-resort fallback — parse from secret key, but warn since it's brittle
+    # Last-resort fallback — parse from secret key
     if settings.clerk_secret_key and "@" in settings.clerk_secret_key:
         match = re.search(r"@([^/]+)", settings.clerk_secret_key)
         if match:
@@ -68,7 +68,7 @@ async def get_current_user(request: Request) -> str:
             token,
             signing_key.key,
             algorithms=["RS256"],
-            audience=settings.clerk_audience or None,  # None lets pyjwt handle missing aud
+            audience=settings.clerk_audience or None,
             issuer=issuer,
         )
         sub = payload.get("sub")
@@ -95,12 +95,12 @@ async def get_current_user(request: Request) -> str:
         structlog.get_logger().error("jwks_request_failed", error=str(e), issuer=issuer)
         raise HTTPException(status_code=503, detail="Auth service unavailable")
     except HTTPException:
-        raise  # Re-raise HTTPExceptions as-is
+        raise
     except Exception as e:
         structlog.get_logger().error("jwt_verification_failed", error=str(e))
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
-# FastAPI dependency wrapper — use this with Depends() for testability
 async def get_current_user_dep(request: Request) -> str:
+    """FastAPI dependency wrapper — use this with Depends() for testability."""
     return await get_current_user(request)

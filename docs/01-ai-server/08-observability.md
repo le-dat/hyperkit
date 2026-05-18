@@ -29,24 +29,37 @@ ai-server/
 
 ## Step 8.1 — Structured Logger
 
-The logging configuration is now handled in `main.py` and the middleware in `middleware/logging.py`.
+The logging configuration is in `main.py` and the middleware in `middleware/logging.py`.
 
 ```python
 # ai-server/middleware/logging.py
-import time
 import uuid
 import structlog
 from fastapi import Request
 
-logger = structlog.get_logger()
 
 async def log_requests(request: Request, call_next):
-    request_id = str(uuid.uuid4())
-    structlog.contextvars.clear_contextvars()
-    structlog.contextvars.bind_contextvars(request_id=request_id)
-    
-    # ... (log request started, process request, log finished with duration)
+    logger = structlog.get_logger()
+    request_id = str(uuid.uuid4())[:8]
+
+    with structlog.contextvars.bound_contextvars(request_id=request_id):
+        logger.info("request_started", method=request.method, path=request.url.path)
+        response = await call_next(request)
+        # Return X-Request-ID so clients can correlate errors with backend logs
+        response.headers["X-Request-ID"] = request_id
+        log_level = "warning" if response.status_code >= 400 else "info"
+        getattr(logger, log_level)(
+            "request_finished",
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+        )
+        return response
 ```
+
+`main.py` uses a conditional renderer:
+- `ENV=development` → `structlog.dev.ConsoleRenderer()` (human-readable)
+- production → `structlog.processors.JSONRenderer()` (for log aggregation)
 
 ---
 
@@ -176,6 +189,153 @@ async def run_ragas_eval(path: str = "tests/golden_dataset.json") -> dict:
     )
     print(f"✅ RAGAS passed. recall={scores['context_recall']:.2f}")
     return scores
+```
+
+---
+
+## Step 8.5 — Database-Driven Telemetry Audit Tracing
+
+For enterprise compliance and precise debugging of autonomous agents, logs alone are insufficient. We implement a structured **Database-Driven Tracing** mechanism using PostgreSQL to store every agent run, intermediate thought process, tool execution, and resource cost.
+
+### 1. PostgreSQL Schema definition
+
+```python
+# ai-server/db/models.py or observability/models.py
+from sqlalchemy import Column, String, Text, Integer, Float, DateTime, ForeignKey, JSON
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import declarative_base, relationship
+from uuid import uuid4
+from datetime import datetime, timezone
+
+Base = declarative_base()
+
+class Trace(Base):
+    """
+    Root table tracking the complete agent turn (Request -> Final Answer).
+    Captures end-to-end latency, tokens consumed, and actual USD costs.
+    """
+    __tablename__ = "agent_traces"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    turn_id = Column(String(100), unique=True, nullable=False, index=True)
+    conversation_id = Column(String(100), nullable=False, index=True)
+    user_id = Column(String(100), nullable=False, index=True)
+    prompt = Column(Text, nullable=False)
+    response = Column(Text, nullable=True)
+    
+    # End-to-end performance and cost calculations
+    time_to_first_token_ms = Column(Integer, nullable=True)
+    total_latency_ms = Column(Integer, nullable=True)
+    total_tokens = Column(Integer, default=0)
+    total_cost_usd = Column(Float, default=0.0)
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    steps = relationship("TraceStep", back_populates="trace", cascade="all, delete-orphan")
+
+
+class TraceStep(Base):
+    """
+    Child table capturing every discrete agent step (thinking, tools, LLM calls).
+    """
+    __tablename__ = "agent_trace_steps"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    trace_id = Column(UUID(as_uuid=True), ForeignKey("agent_traces.id", ondelete="CASCADE"), nullable=False)
+    
+    # 'thinking_block', 'tool_call', 'llm_call', or 'human_approval'
+    step_type = Column(String(50), nullable=False)
+    name = Column(String(100), nullable=False)
+    
+    # Metadata payloads
+    input_data = Column(JSON, nullable=True)   # e.g., {"tool": "read_file", "args": {"path": "..."}}
+    output_data = Column(JSON, nullable=True)  # e.g., {"status": "success", "content": "..."}
+    
+    # Latency and token details per step
+    latency_ms = Column(Integer, nullable=True)
+    tokens_used = Column(Integer, default=0)
+    cost_usd = Column(Float, default=0.0)
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    trace = relationship("Trace", back_populates="steps")
+```
+
+### 2. Tracing Service Implementation
+
+```python
+# ai-server/observability/tracing.py
+from db.models import AsyncSessionLocal, Trace, TraceStep
+from sqlalchemy.future import select
+from uuid import UUID
+
+class TraceService:
+    @staticmethod
+    async def create_trace(
+        turn_id: str, 
+        conversation_id: str, 
+        user_id: str, 
+        prompt: str
+    ) -> str:
+        """Initialize a new root trace record for a session turn."""
+        async with AsyncSessionLocal() as db:
+            trace = Trace(
+                turn_id=turn_id,
+                conversation_id=conversation_id,
+                user_id=user_id,
+                prompt=prompt
+            )
+            db.add(trace)
+            await db.commit()
+            return str(trace.id)
+
+    @staticmethod
+    async def log_step(
+        trace_id: str,
+        step_type: str,
+        name: str,
+        input_data: dict = None,
+        output_data: dict = None,
+        latency_ms: int = None,
+        tokens: int = 0,
+        cost: float = 0.0
+    ) -> None:
+        """Log an intermediate reasoning step or execution call."""
+        async with AsyncSessionLocal() as db:
+            step = TraceStep(
+                trace_id=UUID(trace_id),
+                step_type=step_type,
+                name=name,
+                input_data=input_data,
+                output_data=output_data,
+                latency_ms=latency_ms,
+                tokens_used=tokens,
+                cost_usd=cost
+            )
+            db.add(step)
+            await db.commit()
+
+    @staticmethod
+    async def complete_trace(
+        trace_id: str,
+        response: str,
+        total_latency_ms: int,
+        ttft_ms: int = None,
+        total_tokens: int = 0,
+        total_cost_usd: float = 0.0
+    ) -> None:
+        """Finalize the trace turn with terminal response and total latency/costs."""
+        async with AsyncSessionLocal() as db:
+            stmt = select(Trace).where(Trace.id == UUID(trace_id))
+            result = await db.execute(stmt)
+            trace = result.scalar_one_or_none()
+            if trace:
+                trace.response = response
+                trace.total_latency_ms = total_latency_ms
+                trace.time_to_first_token_ms = ttft_ms
+                trace.total_tokens = total_tokens
+                trace.total_cost_usd = total_cost_usd
+                await db.commit()
 ```
 
 ---

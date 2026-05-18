@@ -212,3 +212,89 @@ docker scout cves ghcr.io/your-org/backend:latest
 docker run -t owasp/zap2docker-stable zap-baseline.py \
   -t https://your-domain.com -r report.html
 ```
+
+---
+
+## 8 — Tool Execution & Runtime Sandboxing
+
+To execute dynamic actions such as file manipulation (`read_file`, `write_file`) or system actions (`run_bash_command`) without risking system takeover, the execution environment must be locked down using a multi-layer defense-in-depth model.
+
+```
+Agent Tool Request 
+      │
+      ▼
+┌──────────────┐
+│  App Layer   │  ──► 1. Tool Allowlist (strict control)
+│  Validation │  ──► 2. Path Traversal Guard (os.path.commonpath)
+│  (Guardrails)│  ──► 3. Shell Command Validator (injection block regex)
+└──────┬───────┘
+       │ (Success)
+       ▼
+┌──────────────┐
+│  OS/Runtime  │  ──► 4. Dropped Privileges (run as non-root user 'app')
+│  Sandboxing  │  ──► 5. Read-Only Root Filesystem (prevent system modification)
+│  (Docker)    │  ──► 6. Resource Limits (CPU/Memory limits, prevent DoS)
+└──────────────┘
+```
+
+### 8.1 — Application-Layer Controls
+As implemented in the `Guardrails` system, all dynamic tools pass through structural validators:
+- **Allowlisting**: Only tools declared in `ALLOWED_TOOLS` can execute.
+- **Path Traversal Protection**: Any path argument is verified using `os.path.commonpath` to ensure it is nested strictly inside the allowed workspace directory (`/home/app/workspace`). Symlinks are fully resolved via `os.path.realpath`.
+- **Command Injection Prevention**: Shell commands pass through a regex blocklist (`BashCommandValidator`) which detects and terminates attempts of privilege escalation (`sudo`, `su`), access to system configuration directories (`/etc`, `/proc`), destructive operations (`rm -rf`), and spawning unauthorized shells or network downloads (`curl`, `wget`, `bash`).
+
+### 8.2 — Runtime Sandboxing (Infrastructure Layer)
+Even with strict software validation, the underlying container must be hardened to prevent zero-day breakouts:
+
+#### 1. Non-Root Execution
+The application and worker containers must drop root privileges immediately. A dedicated user `app` is created and used to run the processes:
+```dockerfile
+# Dockerfile — Run as non-root
+RUN groupadd -g 10001 app && \
+    useradd -u 10000 -g app -m -s /bin/bash app
+
+USER app
+WORKDIR /home/app/workspace
+```
+
+#### 2. Read-Only Root Filesystem
+Mount the container's root filesystem as read-only. Temporary directories or databases should be mounted as explicit `tmpfs` volumes:
+```yaml
+# docker-compose.yml — Hardened worker/backend services
+services:
+  worker:
+    image: ai-chatbot-worker:latest
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M
+      - /home/app/.cache:size=50M
+    security_opt:
+      - no-new-privileges:true
+```
+
+#### 3. Strict Resource Limits
+To prevent runaway loops or Denial of Service (DoS) attacks via memory or CPU exhaustion, strict limits are placed on tool-running containers:
+```yaml
+# docker-compose.yml — resource constraints
+services:
+  worker:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          memory: 128M
+```
+
+#### 4. Network Isolation for Execution Containers
+For high-security operations, tools requiring bash/file execution should run inside an isolated runner container that is completely disconnected from the internal network and external internet:
+```yaml
+# docker-compose.yml — isolated runner
+services:
+  isolated_runner:
+    networks: [] # Disconnected from all networks
+    cap_drop:
+      - ALL
+```
+

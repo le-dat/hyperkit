@@ -55,12 +55,14 @@ async def get_conversation_messages(
         return []
     async with AsyncSessionLocal() as db:
         result = await db.execute(
-            select(Message)
+            select(Message.role, Message.content)
             .where(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at.asc())
+            .order_by(Message.created_at.desc())  # Lấy tin nhắn mới nhất trước
             .limit(limit)
         )
-        return list(result.scalars().all())
+        rows = result.fetchall()
+        # Đảo ngược lại danh sách để trả về đúng thứ tự thời gian tăng dần
+        return [Message(role=r.role, content=r.content) for r in reversed(rows)]
 
 
 async def get_user_conversations(
@@ -85,3 +87,20 @@ async def get_user_conversations(
             .offset(offset)
         )
         return list(result.scalars().all()), total
+
+
+async def update_conversation_title(conversation_id: str, user_id: str, title: str) -> bool:
+    """Update conversation title. Returns False if not found or not owned."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Conversation).where(
+                Conversation.conversation_id == conversation_id,
+                Conversation.user_id == user_id,
+            )
+        )
+        conv = result.scalar_one_or_none()
+        if not conv:
+            return False
+        conv.title = title
+        await db.commit()
+        return True
