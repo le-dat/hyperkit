@@ -2,7 +2,9 @@
 import os
 import structlog
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
@@ -39,7 +41,7 @@ async def lifespan(app: FastAPI):
     from config import settings
     import redis.asyncio as aioredis
 
-    init_db(settings.database_url)
+    await init_db(settings.database_url)
     from db.models import engine
     app.state.db_ready = False
     app.state.redis_ready = False
@@ -147,6 +149,54 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 app.middleware("http")(log_requests)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": {
+                "message": exc.detail,
+                "status": exc.status_code,
+                "code": "HTTP_ERROR"
+            }
+        }
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors_summary = "; ".join([f"{'.'.join(str(l) for l in err['loc'])}: {err['msg']}" for err in exc.errors()])
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "success": False,
+            "error": {
+                "message": f"Validation error: {errors_summary}",
+                "status": status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "code": "VALIDATION_ERROR"
+            }
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    structlog.get_logger().error("unhandled_error", error=str(exc))
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": {
+                "message": "Internal Server Error",
+                "status": 500,
+                "code": "INTERNAL_SERVER_ERROR"
+            }
+        }
+    )
+
 
 # Routers
 app.include_router(system.router, prefix="/v1", tags=["system"])

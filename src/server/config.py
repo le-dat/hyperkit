@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     llm_provider: str = "openai"  # "openai" | "anthropic" | "local"
     openai_api_key: str = ""
     anthropic_api_key: str = ""
+    anthropic_base_url: str = ""
     openai_model: str = "gpt-4o-mini"
     anthropic_model: str = "claude-sonnet-4-20250514"
     vllm_base_url: str = "http://localhost:8080/v1"  # on-premise

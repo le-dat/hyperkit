@@ -9,9 +9,20 @@ from pydantic import BaseModel, model_validator
 
 from auth.clerk import get_current_user_dep
 from mcp_registry.registry import registry, MCPServer
+from core.schemas import ApiSuccess
 
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
+
+
+class McpStatusResponse(BaseModel):
+    status: str
+    name: str
+
+
+class McpHealthResponse(BaseModel):
+    name: str
+    healthy: bool
 
 IS_PROD = os.getenv("ENV") in ("production", "prod")
 
@@ -63,7 +74,7 @@ def _is_admin(user_id: str) -> bool:
     return user_id in ALLOWED_ADMIN_USERS
 
 
-@router.post("/connect")
+@router.post("/connect", response_model=ApiSuccess[McpStatusResponse])
 async def connect(req: ConnectReq, user: str = Depends(get_current_user_dep)):
     """Register and connect a new MCP server. Requires admin in production."""
     if not _is_admin(user):
@@ -79,10 +90,10 @@ async def connect(req: ConnectReq, user: str = Depends(get_current_user_dep)):
         # Roll back registration on failure
         registry._servers.pop(req.name, None)
         raise HTTPException(502, f"Failed to connect to MCP server: {e}")
-    return {"status": "connected", "name": req.name}
+    return ApiSuccess(data=McpStatusResponse(status="connected", name=req.name))
 
 
-@router.post("/{name}/disconnect")
+@router.post("/{name}/disconnect", response_model=ApiSuccess[McpStatusResponse])
 async def disconnect(name: str, user: str = Depends(get_current_user_dep)):
     """Disconnect and unregister an MCP server."""
     if not _is_admin(user):
@@ -98,10 +109,10 @@ async def disconnect(name: str, user: str = Depends(get_current_user_dep)):
 
     # Remove from registry
     del registry._servers[name]
-    return {"status": "disconnected", "name": name}
+    return ApiSuccess(data=McpStatusResponse(status="disconnected", name=name))
 
 
-@router.get("/{name}/status")
+@router.get("/{name}/status", response_model=ApiSuccess[dict[str, Any]])
 async def server_status(name: str, user: str = Depends(get_current_user_dep)):
     """Get status for a specific MCP server."""
     if name not in registry._servers:
@@ -109,11 +120,11 @@ async def server_status(name: str, user: str = Depends(get_current_user_dep)):
     status_list = registry.status()
     for s in status_list:
         if s["name"] == name:
-            return s
+            return ApiSuccess(data=s)
     raise HTTPException(404, f"Server '{name}' not found")
 
 
-@router.post("/{name}/health")
+@router.post("/{name}/health", response_model=ApiSuccess[McpHealthResponse])
 async def health_check(name: str, user: str = Depends(get_current_user_dep)):
     """Run a health check on a registered MCP server."""
     if name not in registry._servers:
@@ -121,16 +132,16 @@ async def health_check(name: str, user: str = Depends(get_current_user_dep)):
     ok = await registry.check_health(name)
     if not ok:
         raise HTTPException(503, f"Server '{name}' health check failed")
-    return {"name": name, "healthy": True}
+    return ApiSuccess(data=McpHealthResponse(name=name, healthy=True))
 
 
-@router.get("/servers")
+@router.get("/servers", response_model=ApiSuccess[list[dict[str, Any]]])
 async def servers(user: str = Depends(get_current_user_dep)):
     """List all registered MCP servers and their health status."""
-    return registry.status()
+    return ApiSuccess(data=registry.status())
 
 
-@router.get("/tools")
+@router.get("/tools", response_model=ApiSuccess[list[dict[str, Any]]])
 async def tools(user: str = Depends(get_current_user_dep)):
     """List all available tools from all connected MCP servers."""
-    return await registry.all_tools()
+    return ApiSuccess(data=await registry.all_tools())

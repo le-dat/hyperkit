@@ -23,6 +23,7 @@ def get_llm(task_type: TaskType = TaskType.REASONING) -> ChatOpenAI | ChatAnthro
         return ChatAnthropic(
             model=settings.anthropic_model,
             api_key=settings.anthropic_api_key or None,
+            base_url=settings.anthropic_base_url or None,
             temperature=0.0,
         )
     elif _PROVIDER == "openai":

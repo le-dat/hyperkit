@@ -1,5 +1,6 @@
 """Agent router — POST /agent/invoke, approve, reject, state endpoints."""
 
+from typing import Any
 import uuid
 import json
 
@@ -10,6 +11,7 @@ from auth.clerk import get_current_user_dep
 from db.chat_history import ensure_conversation, save_message, _verify_ownership
 from guards.input import guard_input
 from agents.supervisor import graph
+from core.schemas import ApiSuccess
 
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -20,7 +22,22 @@ class InvokeRequest(BaseModel):
     message: str
 
 
-@router.post("/invoke")
+class InvokeResponse(BaseModel):
+    turn_id: str
+    conversation_id: str
+    sse_url: str
+
+
+class StatusResponse(BaseModel):
+    status: str
+
+
+class StateResponse(BaseModel):
+    session: dict[str, Any]
+    agent_next: list[str]
+
+
+@router.post("/invoke", response_model=ApiSuccess[InvokeResponse])
 async def invoke(body: InvokeRequest, request: Request, user: str = Depends(get_current_user_dep)):
     """Enqueue a new agent task."""
     conversation_id = body.conversation_id or str(uuid.uuid4())
@@ -51,14 +68,16 @@ async def invoke(body: InvokeRequest, request: Request, user: str = Depends(get_
         message=message,
     )
 
-    return {
-        "turn_id": turn_id,
-        "conversation_id": conversation_id,
-        "sse_url": f"/sse/{turn_id}",
-    }
+    return ApiSuccess(
+        data=InvokeResponse(
+            turn_id=turn_id,
+            conversation_id=conversation_id,
+            sse_url=f"/sse/{turn_id}",
+        )
+    )
 
 
-@router.post("/{turn_id}/approve")
+@router.post("/{turn_id}/approve", response_model=ApiSuccess[StatusResponse])
 async def approve(turn_id: str, request: Request, user: str = Depends(get_current_user_dep)):
     """Resume a human-gate interrupted agent after approval."""
     redis = request.app.state.redis
@@ -76,10 +95,10 @@ async def approve(turn_id: str, request: Request, user: str = Depends(get_curren
     # Pass approved=True to update checkpointed state and allow graph to continue
     await graph.ainvoke({"messages": [], "approved": True}, config=config)
     await redis.hset(f"session:{turn_id}", "status", "resumed")
-    return {"status": "resumed"}
+    return ApiSuccess(data=StatusResponse(status="resumed"))
 
 
-@router.post("/{turn_id}/reject")
+@router.post("/{turn_id}/reject", response_model=ApiSuccess[StatusResponse])
 async def reject(turn_id: str, request: Request, user: str = Depends(get_current_user_dep)):
     """Reject a human-gate interrupted agent."""
     redis = request.app.state.redis
@@ -95,10 +114,10 @@ async def reject(turn_id: str, request: Request, user: str = Depends(get_current
 
     await redis.hset(f"session:{turn_id}", "status", "rejected")
     await redis.publish(f"sse:{turn_id}", json.dumps({"event": "rejected", "data": {}}))
-    return {"status": "rejected"}
+    return ApiSuccess(data=StatusResponse(status="rejected"))
 
 
-@router.get("/{turn_id}/state")
+@router.get("/{turn_id}/state", response_model=ApiSuccess[StateResponse])
 async def get_state(turn_id: str, request: Request, user: str = Depends(get_current_user_dep)):
     """Get agent state and session info for a turn."""
     redis = request.app.state.redis
@@ -114,7 +133,9 @@ async def get_state(turn_id: str, request: Request, user: str = Depends(get_curr
 
     config = {"configurable": {"thread_id": session["conversation_id"]}}
     state = graph.get_state(config)
-    return {
-        "session": dict(session),
-        "agent_next": list(state.next),
-    }
+    return ApiSuccess(
+        data=StateResponse(
+            session=dict(session),
+            agent_next=list(state.next),
+        )
+    )

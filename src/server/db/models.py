@@ -34,7 +34,7 @@ def AsyncSessionLocal(*args, **kwargs):
     return _session_factory(*args, **kwargs)
 
 
-def init_db(database_url: str):
+async def init_db(database_url: str):
     global engine, _session_factory
     from config import settings
     engine, _session_factory = create_engine_and_session(
@@ -43,6 +43,9 @@ def init_db(database_url: str):
         max_overflow=settings.db_max_overflow,
         pool_timeout=settings.db_pool_timeout,
     )
+    # Auto-create all tables on startup (idempotent - uses IF NOT EXISTS)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 
 def _utcnow():

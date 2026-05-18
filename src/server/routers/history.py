@@ -7,6 +7,7 @@ from sqlalchemy import select
 from auth.clerk import get_current_user_dep
 from db.chat_history import get_user_conversations, _verify_ownership
 from db.models import AsyncSessionLocal, Message
+from core.schemas import ApiResponseWithPagination, PaginationDetails
 
 
 router = APIRouter(prefix="/history", tags=["history"])
@@ -26,11 +27,10 @@ class MessageItem(BaseModel):
     created_at: str
 
 
-@router.get("", response_model=list[ConversationItem])
+@router.get("", response_model=ApiResponseWithPagination[list[ConversationItem]])
 async def list_conversations(user: str = Depends(get_current_user_dep)):
-    """Sidebar: list user's conversations ordered by most recent."""
     convs, _ = await get_user_conversations(user_id=user, limit=50, offset=0)
-    return [
+    data = [
         ConversationItem(
             conversation_id=c.conversation_id,
             title=c.title,
@@ -38,9 +38,17 @@ async def list_conversations(user: str = Depends(get_current_user_dep)):
         )
         for c in convs
     ]
+    return ApiResponseWithPagination(
+        data=data,
+        pagination=PaginationDetails(
+            nextCursor=None,
+            hasMore=False,
+            limit=50
+        )
+    )
 
 
-@router.get("/{conversation_id}", response_model=list[MessageItem])
+@router.get("/{conversation_id}", response_model=ApiResponseWithPagination[list[MessageItem]])
 async def get_messages(
     conversation_id: str,
     user: str = Depends(get_current_user_dep),
@@ -61,7 +69,7 @@ async def get_messages(
         )
         rows = result.scalars().all()
 
-    return [
+    data = [
         MessageItem(
             role=m.role,
             content=m.content,
@@ -71,3 +79,11 @@ async def get_messages(
         )
         for m in rows
     ]
+    return ApiResponseWithPagination(
+        data=data,
+        pagination=PaginationDetails(
+            nextCursor=None,
+            hasMore=False,
+            limit=100
+        )
+    )

@@ -17,7 +17,7 @@ export function createProxyHandler(config: ServiceConfig) {
       // Construct the target URL
       const normalizedBase = config.baseUrl?.replace(/\/$/, "");
       const path = pathSegments.join("/");
-      const targetUrl = `${normalizedBase}/v1/${path}`;
+      const targetUrl = `${normalizedBase}/${path}`;
 
       // Get query parameters
       const searchParams = req.nextUrl.searchParams;
