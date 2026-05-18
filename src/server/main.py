@@ -2,15 +2,17 @@
 import os
 import structlog
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request, status
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from db.models import init_db
 from middleware.logging import log_requests
 from routers import system
+from routers import agent
+from routers import sse
+from routers import history
+from routers import mcp
 from core.exceptions import RedisConnectionError, DBConnectionError, setup_exception_handlers
 
 # Set LangSmith tracing env vars before importing LangChain
@@ -153,10 +155,6 @@ app.middleware("http")(log_requests)
 setup_exception_handlers(app)
 # Routers
 app.include_router(system.router, prefix="/v1", tags=["system"])
-from routers import agent
-from routers import sse
-from routers import history
-from routers import mcp
 
 app.include_router(agent.router, prefix="/v1")
 app.include_router(sse.router, prefix="/v1")

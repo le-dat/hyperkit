@@ -7,9 +7,10 @@ import redis.asyncio as aioredis
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.callbacks import get_openai_callback
 
+from config import settings as settings
 from db.chat_history import save_message, get_conversation_messages
 from state.memory import remember_entity
-from config import settings
+from workers.agent_worker import WorkerSettings as WorkerSettings
 
 
 def _utcnow():
@@ -164,8 +165,3 @@ async def run_agent_task(
         current_lock = await redis.get(stream_lock_key)
         if current_lock == turn_id:
             await redis.delete(stream_lock_key)
-
-
-# Re-export WorkerSettings from agent_worker to avoid duplicate definitions
-# and ensure arq uses the correct settings.redis_url configuration
-from workers.agent_worker import WorkerSettings

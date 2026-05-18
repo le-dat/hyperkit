@@ -207,7 +207,7 @@ async def run_agent_task(
                 conversation_id, user_id, "assistant", error_content,
                 tokens_used=0, cost_usd=0.0,
             )
-        except Exception as save_err:
+        except Exception as _:
             # Don't let save failure mask the original error
             pass
 
