@@ -7,6 +7,7 @@ import {
   GetMessagesParams,
   GetMessagesSuccess,
 } from "@/types/api/conversations";
+import { ApiSuccess } from "@/types/common/api-response";
 import { ApiError } from "@/types/common/api-response";
 import { BaseService } from "./baseService";
 
@@ -37,7 +38,7 @@ class ChatService extends BaseService {
     request: SendChatDto
   ): Promise<InvokeAgentResponse | ApiError> {
     try {
-      const response = await axios.post<InvokeAgentResponse>(
+      const response = await axios.post<ApiSuccess<InvokeAgentResponse>>(
         `${this.baseURL}/agent/invoke`,
         {
           conversation_id: request.conversationId || null,
@@ -49,7 +50,8 @@ class ChatService extends BaseService {
           },
         }
       );
-      return response.data;
+      // Backend returns ApiSuccess(data=InvokeResponse), unwrap to get just the data
+      return response.data.data;
     } catch (error) {
       return {
         success: false,
@@ -91,15 +93,31 @@ class ChatService extends BaseService {
     }
   }
 
-  // Stub implementations - backend doesn't support these yet
-  async deleteConversation(_conversationId: string): Promise<ApiError | { success: true }> {
-    console.warn("deleteConversation not implemented on backend");
-    return { success: true };
+  async deleteConversation(conversationId: string): Promise<ApiError | { success: true }> {
+    try {
+      return await this.delete<{ success: true }>(
+        `/history/${conversationId}`
+      );
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
   }
 
-  async updateConversationTitle(_conversationId: string, _title: string): Promise<ApiError | { success: true }> {
-    console.warn("updateConversationTitle not implemented on backend");
-    return { success: true };
+  async updateConversationTitle(conversationId: string, title: string): Promise<ApiError | { success: true }> {
+    try {
+      return await this.patch<{ success: true }>(
+        `/history/${conversationId}`,
+        { title }
+      );
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
   }
 }
 

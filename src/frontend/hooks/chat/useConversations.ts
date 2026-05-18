@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { chatApiService } from "@/service/chatApiService";
 import { ChatSession } from "@/types";
 import { transformConversationsToChatSessions } from "@/lib/chat/messageTransformers";
@@ -12,7 +13,7 @@ export function useConversations() {
     refetch: refetchConversations,
   } = useQuery({
     queryKey: ["conversations"],
-    queryFn: () => chatApiService.getConversations({ limit: 50, cursor: "" }),
+    queryFn: () => chatApiService.getConversations({ limit: 10, cursor: "" }),
   });
 
   const { mutateAsync: deleteConversation, isPending: isDeleting } =
@@ -20,7 +21,13 @@ export function useConversations() {
       mutationFn: (conversationId: string) =>
         chatApiService.deleteConversation(conversationId),
       onSuccess: () => {
+        toast.success("Conversation deleted");
         queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      },
+      onError: (error) => {
+        toast.error("Failed to delete conversation", {
+          description: error instanceof Error ? error.message : "Unknown error",
+        });
       },
     });
 

@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import { ChatMessage } from "@/types";
+import { ChatMessage, MessageRole } from "@/types";
 import { MessageBubble } from "./MessageBubble";
 import { Sparkles } from "lucide-react";
 
@@ -57,9 +57,19 @@ export function ChatMessages({ messages, isLoading, onRetry }: ChatMessagesProps
         </div>
       ) : (
         <div className="max-w-4xl mx-auto w-full py-8 md:py-10 px-4 space-y-6 md:space-y-8 pb-6">
-          {messages?.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} onRetry={onRetry} />
-          ))}
+          {messages?.map((msg, index) => {
+            const isLastAssistantMessage =
+              msg.role === MessageRole.ASSISTANT &&
+              index === messages.length - 1;
+            return (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                onRetry={onRetry}
+                isLastMessage={isLastAssistantMessage}
+              />
+            );
+          })}
           {isLoading && messages?.length > 0 && !messages.some((msg) => msg.isStreaming) && (
             <div className="flex items-center gap-1.5 mt-3">
               <div className="w-2 h-2 bg-hyper-500 rounded-full animate-bounce"></div>

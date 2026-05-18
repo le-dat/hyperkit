@@ -296,7 +296,8 @@ export function useChatActions({
         throw new Error(errorMsg);
       }
 
-      const { turn_id, conversation_id } = invokeResponse as InvokeAgentResponse;
+      const result = invokeResponse as InvokeAgentResponse;
+      const { turn_id, conversation_id } = result;
       conversationId = conversation_id;
 
       if (!currentConversationId) {
@@ -307,7 +308,7 @@ export function useChatActions({
 
       refetchConversations();
 
-      await invokeAgentWithSSE(conversationId, userInput, aiMsgId, turn_id);
+      await invokeAgentWithSSE(conversationId!, userInput, aiMsgId, turn_id);
     } catch (error) {
       console.error("Failed to send message:", error);
       cleanupMessageResources(aiMsgId);
@@ -355,8 +356,9 @@ export function useChatActions({
     if (errorMessageIndex === -1) return;
 
     const errorMessage = messages[errorMessageIndex];
-    if (!errorMessage || !errorMessage.error) return;
+    if (!errorMessage) return;
 
+    // Find the user message that preceded this AI message
     let userMessage: ChatMessage | undefined;
     for (let i = errorMessageIndex - 1; i >= 0; i--) {
       if (messages[i].role === MessageRole.USER) {
@@ -365,19 +367,22 @@ export function useChatActions({
       }
     }
 
+    // For retry (error state) or regenerate (last message), need user message and conversation
     if (!userMessage || !currentConversationId) return;
 
-    setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+    // For retry (error state): remove only the error AI message
+    // For regenerate: remove the last AI message
+    const isRegenerate = !errorMessage.error;
 
-    const userMsgId = Date.now().toString();
-    const aiMsgId = Date.now() + 1 + "-ai";
+    if (isRegenerate) {
+      // Regenerate: remove just the AI message at errorMessageIndex (user message stays)
+      setMessages((prev) => prev.filter((_, idx) => idx !== errorMessageIndex));
+    } else {
+      // Retry on error: remove the error AI message (user message stays)
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+    }
 
-    const userMsg: ChatMessage = {
-      id: userMsgId,
-      role: MessageRole.USER,
-      text: userMessage.text,
-      created_at: new Date().toISOString(),
-    };
+    const aiMsgId = Date.now() + "-ai";
 
     const aiMsg: ChatMessage = {
       id: aiMsgId,
@@ -388,7 +393,7 @@ export function useChatActions({
     };
 
     setIsLoading(true);
-    setMessages((prev) => [...prev, userMsg, aiMsg]);
+    setMessages((prev) => [...prev, aiMsg]);
     deltaBufferRef.current.set(aiMsgId, "");
 
     try {
@@ -404,8 +409,9 @@ export function useChatActions({
         throw new Error(errorMsg);
       }
 
-      const { turn_id } = invokeResponse as InvokeAgentResponse;
-      await invokeAgentWithSSE(currentConversationId, userMessage.text, aiMsgId, turn_id);
+      const result = invokeResponse as InvokeAgentResponse;
+      const { turn_id } = result;
+      await invokeAgentWithSSE(currentConversationId!, userMessage.text, aiMsgId, turn_id);
     } catch (error) {
       console.error("Retry failed:", error);
       cleanupMessageResources(aiMsgId);

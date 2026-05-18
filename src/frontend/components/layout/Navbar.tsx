@@ -47,7 +47,7 @@ export function Navbar() {
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-8">
             <Logo onClick={handleGoHome} />
-            <NavigationTabs items={menuItems} onNavigate={handleNavigation} />
+            {/* <NavigationTabs items={menuItems} onNavigate={handleNavigation} /> */}
           </div>
 
           <div className="flex items-center gap-4">

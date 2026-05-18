@@ -8,7 +8,7 @@ const AppProvider = ({ children }: { children: React.ReactNode }) => {
   return (
     <ClerkAuthProvider>
       <ReactQueryProvider>{children}</ReactQueryProvider>
-      <Toaster richColors position="bottom-right" closeButton />
+      <Toaster richColors position="top-center" closeButton={false} duration={2000} />
     </ClerkAuthProvider>
   );
 };

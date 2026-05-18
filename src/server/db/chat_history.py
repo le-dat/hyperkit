@@ -87,3 +87,20 @@ async def get_user_conversations(
             .offset(offset)
         )
         return list(result.scalars().all()), total
+
+
+async def update_conversation_title(conversation_id: str, user_id: str, title: str) -> bool:
+    """Update conversation title. Returns False if not found or not owned."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Conversation).where(
+                Conversation.conversation_id == conversation_id,
+                Conversation.user_id == user_id,
+            )
+        )
+        conv = result.scalar_one_or_none()
+        if not conv:
+            return False
+        conv.title = title
+        await db.commit()
+        return True

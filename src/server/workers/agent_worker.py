@@ -101,6 +101,14 @@ async def run_agent_task(
                         json.dumps({"event": "cancelled", "data": {"message": "Task cancelled by user"}}),
                     )
                     await redis.hset(f"session:{turn_id}", "status", "cancelled")
+                    # Save user's cancelled message to history
+                    try:
+                        await save_message(
+                            conversation_id, user_id, "user", message,
+                            tokens_used=0, cost_usd=0.0,
+                        )
+                    except Exception:
+                        pass
                     return
 
                 etype = event["event"]
@@ -169,6 +177,22 @@ async def run_agent_task(
             json.dumps({"event": "error", "data": {"message": str(e)}}),
         )
         await redis.hset(f"session:{turn_id}", "status", "failed")
+
+        # Save failed message to history so user can see it and retry
+        error_content = f"Error: {str(e)}"
+        try:
+            await save_message(
+                conversation_id, user_id, "user", message,
+                tokens_used=0, cost_usd=0.0,
+            )
+            await save_message(
+                conversation_id, user_id, "assistant", error_content,
+                tokens_used=0, cost_usd=0.0,
+            )
+        except Exception as save_err:
+            # Don't let save failure mask the original error
+            pass
+
         raise
     finally:
         # Atomic lock release via Lua script — avoids race between get and delete

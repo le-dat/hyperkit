@@ -2,12 +2,12 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from auth.clerk import get_current_user_dep
-from db.chat_history import get_user_conversations, _verify_ownership
-from db.models import AsyncSessionLocal, Message
-from core.schemas import ApiResponseWithPagination, PaginationDetails
+from db.chat_history import get_user_conversations, update_conversation_title as update_title_db, _verify_ownership
+from db.models import AsyncSessionLocal, Conversation, Message
+from core.schemas import ApiResponseWithPagination, ApiSuccess, PaginationDetails
 
 
 router = APIRouter(prefix="/history", tags=["history"])
@@ -46,6 +46,46 @@ async def list_conversations(user: str = Depends(get_current_user_dep)):
             limit=50
         )
     )
+
+
+class DeleteConversationResponse(BaseModel):
+    deleted: str
+
+
+class UpdateTitleRequest(BaseModel):
+    title: str
+
+
+@router.delete("/{conversation_id}", response_model=ApiSuccess[DeleteConversationResponse])
+async def delete_conversation(
+    conversation_id: str,
+    user: str = Depends(get_current_user_dep),
+):
+    if not await _verify_ownership(conversation_id, user):
+        raise HTTPException(403, "Forbidden")
+
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            delete(Message).where(Message.conversation_id == conversation_id)
+        )
+        await db.execute(
+            delete(Conversation).where(Conversation.conversation_id == conversation_id)
+        )
+        await db.commit()
+
+    return ApiSuccess(data={"deleted": conversation_id})
+
+
+@router.patch("/{conversation_id}", response_model=ApiSuccess[dict])
+async def update_conversation_title(
+    conversation_id: str,
+    request: UpdateTitleRequest,
+    user: str = Depends(get_current_user_dep),
+):
+    updated = await update_title_db(conversation_id, user, request.title)
+    if not updated:
+        raise HTTPException(404, "Conversation not found")
+    return ApiSuccess(data={"conversation_id": conversation_id})
 
 
 @router.get("/{conversation_id}", response_model=ApiResponseWithPagination[list[MessageItem]])

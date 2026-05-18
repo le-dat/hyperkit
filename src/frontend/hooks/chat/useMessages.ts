@@ -6,7 +6,7 @@ export function useMessages(conversationId: string | null) {
     queryKey: ["messages", conversationId],
     queryFn: () =>
       chatApiService.getMessages(conversationId as string, {
-        limit: 50,
+        limit: 10,
         cursor: "",
       }),
     enabled: !!conversationId,

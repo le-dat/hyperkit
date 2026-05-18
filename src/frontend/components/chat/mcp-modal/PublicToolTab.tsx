@@ -17,33 +17,25 @@ export function PublicToolTab({
 }: PublicToolTabProps) {
   return (
     <>
-      {/* Search Bar */}
-      <div className="p-4 border-b border-hyper-800 sticky top-0 bg-hyper-950/95 backdrop-blur z-10">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-hyper-500" />
-          <Input
-            type="text"
-            placeholder="Search tools..."
-            className="pl-10 h-10 bg-hyper-950 border border-hyper-800 text-white placeholder:text-hyper-500 focus:border-hyper-accent"
-            disabled={isLoading}
-          />
-        </div>
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-hyper-500" />
+        <Input
+          type="text"
+          placeholder="Search tools..."
+          className="pl-10 h-9 bg-hyper-950 border-hyper-800 text-white placeholder:text-hyper-500 focus:border-hyper-accent"
+          disabled={isLoading}
+        />
       </div>
 
-      {/* Tool Grid */}
-      <div className="p-4">
+      <div className="space-y-2">
         {isLoading ? (
-          <ToolGridSkeleton count={8} />
+          <ToolGridSkeleton count={4} />
         ) : tools.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {tools.map((tool) => (
-              <ToolItem key={tool.id} tool={tool} onConnect={onConnect} />
-            ))}
-          </div>
+          tools.map((tool) => (
+            <ToolItem key={tool.id} tool={tool} onConnect={onConnect} />
+          ))
         ) : (
-          <div className="text-center py-12 rounded-lg border border-hyper-800 bg-hyper-950/30">
-            <p className="text-sm text-hyper-500">No tools found</p>
-          </div>
+          <div className="text-center py-8 text-sm text-hyper-500">No tools found</div>
         )}
       </div>
     </>

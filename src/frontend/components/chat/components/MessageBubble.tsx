@@ -9,6 +9,7 @@ import { RotateCcw } from "lucide-react";
 interface MessageBubbleProps {
   message: ChatMessage;
   onRetry?: (messageId: string) => void;
+  isLastMessage?: boolean;
 }
 
 // Constants
@@ -200,25 +201,45 @@ function MarkdownContent({ content, isUser }: { content: string; isUser: boolean
 function RetryButton({
   messageId,
   onRetry,
+  isLastMessage,
+  isStreaming,
+  hasError,
 }: {
   messageId: string;
   onRetry?: (id: string) => void;
+  isLastMessage?: boolean;
+  isStreaming?: boolean;
+  hasError?: boolean;
 }) {
   if (!onRetry) return null;
+
+  // Don't show while streaming (like ChatGPT)
+  if (isStreaming) return null;
+
+  // Show Regenerate on last assistant message (ChatGPT/Vercel pattern)
+  // Show Retry on error state (even if not last message)
+  const showRegenerate = isLastMessage && !hasError;
+  const showRetry = hasError;
+
+  if (!showRegenerate && !showRetry) return null;
 
   return (
     <button
       onClick={() => onRetry(messageId)}
-      className="mt-3 flex items-center gap-2 px-3 py-1.5 text-sm text-hyper-300 hover:text-hyper-100 bg-hyper-800 hover:bg-hyper-700 rounded-lg transition-colors border border-hyper-700 hover:border-hyper-600"
+      className={`mt-3 flex items-center gap-2 px-3 py-1.5 text-sm ${
+        showRegenerate
+          ? "text-hyper-100 bg-hyper-700 hover:bg-hyper-600 border border-hyper-600"
+          : "text-hyper-300 hover:text-hyper-100 bg-hyper-800 hover:bg-hyper-700 border border-hyper-700 hover:border-hyper-600"
+      } rounded-lg transition-colors`}
     >
       <RotateCcw className="w-4 h-4" />
-      <span>Retry</span>
+      <span>{showRegenerate ? "Regenerate" : "Retry"}</span>
     </button>
   );
 }
 
 export const MessageBubble = memo(
-  function MessageBubble({ message, onRetry }: MessageBubbleProps) {
+  function MessageBubble({ message, onRetry, isLastMessage }: MessageBubbleProps) {
     const isUser = message.role === MessageRole.USER;
     const containerClasses = `flex gap-3 md:gap-4 ${isUser ? "justify-end" : ""}`;
     const [showIndicator, setShowIndicator] = useState(message.isStreaming);
@@ -251,7 +272,16 @@ export const MessageBubble = memo(
           {!isUser && <MessageHeader timestamp={message.created_at} />}
           <MarkdownContent content={message.text || ""} isUser={isUser} />
           {showIndicator && <StreamingIndicator isVisible={message.isStreaming ?? false} />}
-          {message.error && !isUser && <RetryButton messageId={message.id} onRetry={onRetry} />}
+          {/* Show Regenerate on last AI message (when done), or Retry on error */}
+          {!isUser && (
+            <RetryButton
+              messageId={message.id}
+              onRetry={onRetry}
+              isLastMessage={isLastMessage}
+              isStreaming={message.isStreaming}
+              hasError={message.error}
+            />
+          )}
         </div>
       </div>
     );
@@ -266,7 +296,8 @@ export const MessageBubble = memo(
       prev.isStreaming === next.isStreaming &&
       prev.role === next.role &&
       prev.error === next.error &&
-      prevProps.onRetry === nextProps.onRetry
+      prevProps.onRetry === nextProps.onRetry &&
+      prevProps.isLastMessage === nextProps.isLastMessage
     );
   }
 );

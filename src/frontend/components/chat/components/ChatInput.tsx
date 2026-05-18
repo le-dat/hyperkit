@@ -46,13 +46,9 @@ function ChatInputComponent({
 
   const containerClassName = useMemo(() => {
     const baseClasses =
-      "relative glass-strong rounded-2xl shadow-2xl ring-1 ring-white/10 transition-all duration-300";
-    const borderClasses =
-      value?.trim().length > 0
-        ? "ring-hyper-accent/50 shadow-hyper-accent/20"
-        : "hover:ring-white/20";
-    return `${baseClasses} ${borderClasses}`;
-  }, [value]);
+      "relative glass-strong rounded-2xl shadow-2xl transition-all duration-300";
+    return baseClasses;
+  }, []);
 
   const buttonClassName = useMemo(() => {
     const baseClasses = "p-2 rounded-xl transition-all duration-200";
