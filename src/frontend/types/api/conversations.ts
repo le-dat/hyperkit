@@ -23,14 +23,16 @@ export enum MessageRole {
 }
 
 export interface Message {
-  id: string;
-  conversation_id: string;
+  id?: string;
+  conversation_id?: string;
   role: MessageRole;
-  content: string[];
-  timestamp: string;
-  metadata: Record<string, any>;
+  content: string;
+  tokens_used?: number;
+  cost_usd?: number;
+  timestamp?: string;
+  metadata?: Record<string, any>;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export type GetMessagesParams = CursorPaginationParams;

@@ -1,6 +1,6 @@
 import { PATH } from "@/lib/constants";
-import { chatApiService } from "@/service/chatApiService";
-import { ChatMessage, MessageRole, StreamData } from "@/types";
+import { chatApiService, InvokeAgentResponse } from "@/service/chatApiService";
+import { ChatMessage, MessageRole } from "@/types";
 import { StreamEventType } from "@/types/api/chat";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -36,18 +36,18 @@ export function useChatActions({
   const router = useRouter();
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   const deltaBufferRef = useRef<Map<string, string>>(new Map());
   const rafIdRef = useRef<Map<string, number>>(new Map());
 
-  const abortMessageSending = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+  const cleanupMessageResources = (messageId: string) => {
+    const rafId = rafIdRef.current.get(messageId);
+    if (rafId !== undefined) {
+      cancelAnimationFrame(rafId);
+      rafIdRef.current.delete(messageId);
     }
-    rafIdRef.current.forEach((id) => cancelAnimationFrame(id));
-    rafIdRef.current.clear();
-    deltaBufferRef.current.clear();
+    deltaBufferRef.current.delete(messageId);
   };
 
   const flushDeltaBuffer = useCallback(
@@ -69,7 +69,6 @@ export function useChatActions({
 
   const scheduleUpdate = useCallback(
     (messageId: string) => {
-      // Cancel existing scheduled update for this message
       const existingRafId = rafIdRef.current.get(messageId);
       if (existingRafId !== undefined) {
         cancelAnimationFrame(existingRafId);
@@ -85,232 +84,172 @@ export function useChatActions({
     [flushDeltaBuffer]
   );
 
-  const cleanupMessageResources = (messageId: string) => {
-    const rafId = rafIdRef.current.get(messageId);
-    if (rafId !== undefined) {
-      cancelAnimationFrame(rafId);
-      rafIdRef.current.delete(messageId);
+  const closeEventSource = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
     }
-    deltaBufferRef.current.delete(messageId);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
   };
 
-  const createConversation = async (title?: string): Promise<string | null> => {
-    try {
-      const response = await chatApiService.createConversation(title);
-      if (response.success && response.data) {
-        const newId = response.data.id;
-        justCreatedConversationRef.current = true;
-        refetchConversations();
-        return newId;
-      }
-    } catch (error) {
-      console.error("Failed to create conversation:", error);
-    }
-    return null;
-  };
+  const handleStreamEvent = useCallback(
+    (event: MessageEvent, aiMsgId: string, _conversationId: string) => {
+      try {
+        const payload = JSON.parse(event.data);
+        const data = payload.data || {};
+        const eventType = payload.event || payload.type;
 
-  const sendMessageWithStreaming = async (
-    conversationId: string,
-    userInput: string,
-    userMsgId: string,
-    aiMsgId: string
-  ) => {
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-
-    if (!deltaBufferRef.current.has(aiMsgId)) {
-      deltaBufferRef.current.set(aiMsgId, "");
-    }
-
-    try {
-      await chatApiService.sendChatMessage(
-        {
-          content: userInput,
-          conversationId: conversationId,
-        },
-        {
-          onStreamData: (event: StreamData) => {
-            switch (event.type) {
-              case StreamEventType.UserMessage:
-                setMessages((prev) =>
-                  prev.map((msg) => (msg.id === userMsgId ? { ...msg, id: event.data.id } : msg))
-                );
-                console.log("[Stream] User message saved:", event.data.id);
-                break;
-
-              case StreamEventType.ToolCallsStart:
-                console.log("[Stream] Tool calls starting:", event.data.count);
-                break;
-
-              case StreamEventType.ToolCall:
-                console.log("[Stream] Tool call:", {
-                  tool: event.data.tool,
-                  status: event.data.status,
-                });
-                break;
-
-              case StreamEventType.ToolCallsEnd:
-                console.log("[Stream] Tool calls completed:", event.data.results);
-                break;
-
-              case StreamEventType.ContentStart:
-                setMessages((prev) => {
-                  const exists = prev.some((msg) => msg.id === aiMsgId);
-                  if (!exists) {
-                    const fallbackMsg: ChatMessage = {
-                      id: aiMsgId,
-                      role: MessageRole.ASSISTANT,
-                      text: "",
-                      created_at: new Date().toISOString(),
-                      isStreaming: true,
-                    };
-                    return [...prev, fallbackMsg];
-                  }
-                  return prev;
-                });
-                break;
-
-              case StreamEventType.ContentDelta:
-                const currentBuffer = deltaBufferRef.current.get(aiMsgId) || "";
-                deltaBufferRef.current.set(aiMsgId, currentBuffer + event.data.delta);
-
-                scheduleUpdate(aiMsgId);
-                break;
-
-              case StreamEventType.Content:
-                flushDeltaBuffer(aiMsgId);
-
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === aiMsgId ? { ...msg, text: (msg.text || "") + event.data.text } : msg
-                  )
-                );
-                break;
-
-              case StreamEventType.ContentEnd:
-                flushDeltaBuffer(aiMsgId);
-                break;
-
-              case StreamEventType.Done:
-                const finalBuffer = deltaBufferRef.current.get(aiMsgId) || "";
-                cleanupMessageResources(aiMsgId);
-
-                startTransition(() => {
-                  setMessages((prev) => {
-                    const currentMessage = prev.find((msg) => msg.id === aiMsgId);
-                    const newText = (currentMessage?.text || "") + finalBuffer;
-                    const newId = event.data.assistantMessageId || aiMsgId;
-                    return prev.map((msg) =>
-                      msg.id === aiMsgId
-                        ? {
-                            ...msg,
-                            text: newText,
-                            isStreaming: false,
-                            id: newId,
-                          }
-                        : msg
-                    );
-                  });
-                });
-                break;
-
-              case StreamEventType.MessageComplete:
-                const completeBuffer = deltaBufferRef.current.get(aiMsgId) || "";
-                cleanupMessageResources(aiMsgId);
-
-                startTransition(() => {
-                  setMessages((prev) => {
-                    const currentMessage = prev.find((msg) => msg.id === aiMsgId);
-                    const newText = (currentMessage?.text || "") + completeBuffer;
-                    const newId = event.data.assistantMessageId || aiMsgId;
-                    return prev.map((msg) =>
-                      msg.id === aiMsgId
-                        ? {
-                            ...msg,
-                            text: newText,
-                            isStreaming: false,
-                            id: newId,
-                          }
-                        : msg
-                    );
-                  });
-                });
-                break;
-
-              case StreamEventType.Error:
-                console.error("Stream error:", event.data.message);
-                const errorBuffer = deltaBufferRef.current.get(aiMsgId) || "";
-                cleanupMessageResources(aiMsgId);
-
-                startTransition(() => {
-                  setMessages((prev) =>
-                    prev.map((msg) => {
-                      if (msg.id !== aiMsgId) return msg;
-
-                      const finalText = msg.text
-                        ? msg.text + errorBuffer
-                        : errorBuffer || "I encountered an error: " + event.data.message;
-
-                      return {
-                        ...msg,
-                        text: finalText,
-                        isStreaming: false,
-                        error: true,
-                      };
-                    })
-                  );
-                });
-                break;
+        switch (eventType) {
+          case "content_delta":
+          case StreamEventType.ContentDelta: {
+            const delta = data.delta || "";
+            if (delta) {
+              const currentBuffer = deltaBufferRef.current.get(aiMsgId) || "";
+              deltaBufferRef.current.set(aiMsgId, currentBuffer + delta);
+              scheduleUpdate(aiMsgId);
             }
-          },
-          onError: (error) => {
-            console.error("Chat error:", error);
-            setMessages((prev) =>
-              prev.map((msg) => {
-                if (msg.id !== aiMsgId) return msg;
+            break;
+          }
 
-                return {
-                  ...msg,
-                  text: "I encountered an error connecting to the AI service.",
-                  isStreaming: false,
-                  error: true,
-                };
-              })
-            );
-            setIsLoading(false);
-          },
-          onSuccess: () => {
-            setMessages((prev) =>
-              prev.map((msg) => (msg.id === aiMsgId ? { ...msg, isStreaming: false } : msg))
-            );
-            setIsLoading(false);
-            refetchConversations();
-            queryClient.invalidateQueries({
-              queryKey: ["messages", conversationId],
+          case "content":
+          case StreamEventType.Content: {
+            const text = data.text || "";
+            if (text) {
+              flushDeltaBuffer(aiMsgId);
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === aiMsgId ? { ...msg, text: (msg.text || "") + text } : msg
+                )
+              );
+            }
+            break;
+          }
+
+          case "content_end":
+          case StreamEventType.ContentEnd: {
+            flushDeltaBuffer(aiMsgId);
+            break;
+          }
+
+          case "done":
+          case StreamEventType.Done: {
+            const finalBuffer = deltaBufferRef.current.get(aiMsgId) || "";
+            cleanupMessageResources(aiMsgId);
+
+            startTransition(() => {
+              setMessages((prev) => {
+                const currentMessage = prev.find((msg) => msg.id === aiMsgId);
+                const newText = (currentMessage?.text || "") + finalBuffer;
+                const newId = data.assistantMessageId || aiMsgId;
+                return prev.map((msg) =>
+                  msg.id === aiMsgId
+                    ? { ...msg, text: newText, isStreaming: false, id: newId }
+                    : msg
+                );
+              });
             });
-          },
-          abortSignal: controller.signal,
+            break;
+          }
+
+          case "message_complete":
+          case StreamEventType.MessageComplete: {
+            const completeBuffer = deltaBufferRef.current.get(aiMsgId) || "";
+            cleanupMessageResources(aiMsgId);
+
+            startTransition(() => {
+              setMessages((prev) => {
+                const currentMessage = prev.find((msg) => msg.id === aiMsgId);
+                const newText = (currentMessage?.text || "") + completeBuffer;
+                const newId = data.assistantMessageId || aiMsgId;
+                return prev.map((msg) =>
+                  msg.id === aiMsgId
+                    ? { ...msg, text: newText, isStreaming: false, id: newId }
+                    : msg
+                );
+              });
+            });
+            break;
+          }
+
+          case "error":
+          case StreamEventType.Error: {
+            console.error("Stream error:", data.message);
+            const errorBuffer = deltaBufferRef.current.get(aiMsgId) || "";
+            cleanupMessageResources(aiMsgId);
+
+            startTransition(() => {
+              setMessages((prev) =>
+                prev.map((msg) => {
+                  if (msg.id !== aiMsgId) return msg;
+                  const finalText = msg.text
+                    ? msg.text + errorBuffer
+                    : errorBuffer || "I encountered an error: " + (data.message || "Unknown error");
+                  return { ...msg, text: finalText, isStreaming: false, error: true };
+                })
+              );
+            });
+            break;
+          }
+
+          case "timeout":
+          case "rejected":
+          case "cancelled":
+          case "agent_complete": {
+            cleanupMessageResources(aiMsgId);
+            setIsLoading(false);
+            break;
+          }
+
+          default:
+            break;
         }
-      );
-    } catch (error) {
-      console.error("Failed to send message:", error);
-      flushDeltaBuffer(aiMsgId);
+      } catch (error) {
+        console.error("Failed to parse SSE message:", error);
+      }
+    },
+    [flushDeltaBuffer, scheduleUpdate, setMessages, setIsLoading]
+  );
+
+  const invokeAgentWithSSE = async (
+    conversationId: string,
+    message: string,
+    aiMsgId: string,
+    turnId: string
+  ) => {
+    const sseUrl = `/api/sse/v1/${turnId}`;
+    const eventSource = new EventSource(sseUrl);
+    eventSourceRef.current = eventSource;
+
+    eventSource.addEventListener("message", (event) => {
+      handleStreamEvent(event, aiMsgId, conversationId);
+    });
+
+    eventSource.addEventListener("error", (error) => {
+      console.error("SSE error:", error);
+      closeEventSource();
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id !== aiMsgId) return msg;
-
           return {
             ...msg,
-            text: "I encountered an error connecting to the AI service.",
+            text: msg.text || "Connection lost. Please try again.",
             isStreaming: false,
             error: true,
           };
         })
       );
       setIsLoading(false);
-    } finally {
-      cleanupMessageResources(aiMsgId);
-    }
+    });
+
+    eventSource.addEventListener("done", () => {
+      closeEventSource();
+      setIsLoading(false);
+      refetchConversations();
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+    });
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -319,7 +258,7 @@ export function useChatActions({
 
     const userInput = input;
     const userMsgId = Date.now().toString();
-    const aiMsgId = (Date.now() + 1).toString();
+    const aiMsgId = Date.now() + 1 + "-ai";
 
     const userMsg: ChatMessage = {
       id: userMsgId,
@@ -343,23 +282,53 @@ export function useChatActions({
     deltaBufferRef.current.set(aiMsgId, "");
 
     let conversationId = currentConversationId;
-    if (!conversationId) {
-      conversationId = await createConversation(userInput);
-      if (!conversationId) {
-        setIsLoading(false);
-        setMessages((prev) => prev.filter((msg) => msg.id !== aiMsgId));
-        return;
-      }
-      setCurrentConversationId(conversationId);
-      router.push(`${PATH.agent}?id=${conversationId}`);
-    }
 
-    await sendMessageWithStreaming(conversationId, userInput, userMsgId, aiMsgId);
+    try {
+      const invokeResponse = await chatApiService.invokeAgent({
+        conversationId: conversationId || undefined,
+        message: userInput,
+      });
+
+      if (!invokeResponse || "success" in invokeResponse && !invokeResponse.success) {
+        const errorMsg = "success" in invokeResponse && typeof invokeResponse.error === 'string'
+          ? invokeResponse.error
+          : "Failed to invoke agent";
+        throw new Error(errorMsg);
+      }
+
+      const { turn_id, conversation_id } = invokeResponse as InvokeAgentResponse;
+      conversationId = conversation_id;
+
+      if (!currentConversationId) {
+        justCreatedConversationRef.current = true;
+        setCurrentConversationId(conversationId);
+        router.push(`${PATH.agent}?id=${conversationId}`);
+      }
+
+      refetchConversations();
+
+      await invokeAgentWithSSE(conversationId, userInput, aiMsgId, turn_id);
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      cleanupMessageResources(aiMsgId);
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== aiMsgId) return msg;
+          return {
+            ...msg,
+            text: "I encountered an error connecting to the AI service.",
+            isStreaming: false,
+            error: true,
+          };
+        })
+      );
+      setIsLoading(false);
+    }
   };
 
   const handleNewChat = () => {
+    closeEventSource();
     if (messages?.length === 0) return;
-    abortMessageSending();
 
     startTransition(() => {
       setIsTransitioning(true);
@@ -374,7 +343,7 @@ export function useChatActions({
   const handleSelectChat = (chatId: string) => {
     if (chatId === currentConversationId) return;
 
-    abortMessageSending();
+    closeEventSource();
 
     setIsTransitioning(true);
     setCurrentConversationId(chatId);
@@ -401,7 +370,7 @@ export function useChatActions({
     setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
 
     const userMsgId = Date.now().toString();
-    const aiMsgId = (Date.now() + 1).toString();
+    const aiMsgId = Date.now() + 1 + "-ai";
 
     const userMsg: ChatMessage = {
       id: userMsgId,
@@ -422,7 +391,37 @@ export function useChatActions({
     setMessages((prev) => [...prev, userMsg, aiMsg]);
     deltaBufferRef.current.set(aiMsgId, "");
 
-    await sendMessageWithStreaming(currentConversationId, userMessage.text, userMsgId, aiMsgId);
+    try {
+      const invokeResponse = await chatApiService.invokeAgent({
+        conversationId: currentConversationId,
+        message: userMessage.text,
+      });
+
+      if (!invokeResponse || "success" in invokeResponse && !invokeResponse.success) {
+        const errorMsg = "success" in invokeResponse && typeof invokeResponse.error === 'string'
+          ? invokeResponse.error
+          : "Failed to invoke agent";
+        throw new Error(errorMsg);
+      }
+
+      const { turn_id } = invokeResponse as InvokeAgentResponse;
+      await invokeAgentWithSSE(currentConversationId, userMessage.text, aiMsgId, turn_id);
+    } catch (error) {
+      console.error("Retry failed:", error);
+      cleanupMessageResources(aiMsgId);
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== aiMsgId) return msg;
+          return {
+            ...msg,
+            text: "I encountered an error. Please try again.",
+            isStreaming: false,
+            error: true,
+          };
+        })
+      );
+      setIsLoading(false);
+    }
   };
 
   return {

@@ -1,6 +1,6 @@
 export interface SendChatDto {
   conversationId?: string;
-  content: string;
+  message: string;
 }
 
 export enum StreamEventType {

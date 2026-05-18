@@ -40,7 +40,12 @@ export function useConversations() {
 
   const history: ChatSession[] =
     conversationsData?.success && conversationsData.data
-      ? transformConversationsToChatSessions(conversationsData.data)
+      ? transformConversationsToChatSessions(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (Array.isArray(conversationsData.data)
+            ? conversationsData.data
+            : (conversationsData.data as { items?: unknown[] }).items || []) as unknown[]
+        )
       : [];
 
   return {
