@@ -1,10 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { PATH } from "@/lib/constants";
-import { chatApiService, InvokeAgentResponse } from "@/service/chatApiService";
+import { chatApiService } from "@/service/chatApiService";
 import { ChatMessage, MessageRole } from "@/types";
 import { StreamEventType } from "@/types/api/chat";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { startTransition, useCallback, useRef } from "react";
+import { getErrorMessage } from "@/lib/api/apiUtils";
 
 interface UseChatActionsProps {
   currentConversationId: string | null;
@@ -96,16 +98,35 @@ export function useChatActions({
   };
 
   const handleStreamEvent = useCallback(
-    (event: MessageEvent, aiMsgId: string, _conversationId: string) => {
+    (event: MessageEvent, aiMsgId: string, conversationId: string) => {
       try {
-        const payload = JSON.parse(event.data);
-        const data = payload.data || {};
-        const eventType = payload.event || payload.type;
+        let eventType = event.type;
+        let eventData: any = null;
+
+        // Try to parse event.data
+        let parsedData: any = null;
+        try {
+          parsedData = JSON.parse(event.data);
+        } catch {
+          parsedData = event.data;
+        }
+
+        // If it's a standard "message" event, extract fields from the wrapper
+        if (eventType === "message" && parsedData && typeof parsedData === "object") {
+          eventType = parsedData.event || parsedData.type || "message";
+          eventData = parsedData.data !== undefined ? parsedData.data : parsedData;
+        } else {
+          // For custom events (e.g. token_stream), parsedData itself is the payload
+          eventData = parsedData;
+        }
+
+        if (!eventType) return;
 
         switch (eventType) {
+          case "token_stream":
           case "content_delta":
           case StreamEventType.ContentDelta: {
-            const delta = data.delta || "";
+            const delta = typeof eventData === "string" ? eventData : (eventData?.delta || "");
             if (delta) {
               const currentBuffer = deltaBufferRef.current.get(aiMsgId) || "";
               deltaBufferRef.current.set(aiMsgId, currentBuffer + delta);
@@ -116,7 +137,7 @@ export function useChatActions({
 
           case "content":
           case StreamEventType.Content: {
-            const text = data.text || "";
+            const text = typeof eventData === "string" ? eventData : (eventData?.text || "");
             if (text) {
               flushDeltaBuffer(aiMsgId);
               setMessages((prev) =>
@@ -134,6 +155,7 @@ export function useChatActions({
             break;
           }
 
+          case "agent_complete":
           case "done":
           case StreamEventType.Done: {
             const finalBuffer = deltaBufferRef.current.get(aiMsgId) || "";
@@ -143,7 +165,7 @@ export function useChatActions({
               setMessages((prev) => {
                 const currentMessage = prev.find((msg) => msg.id === aiMsgId);
                 const newText = (currentMessage?.text || "") + finalBuffer;
-                const newId = data.assistantMessageId || aiMsgId;
+                const newId = eventData?.assistantMessageId || aiMsgId;
                 return prev.map((msg) =>
                   msg.id === aiMsgId
                     ? { ...msg, text: newText, isStreaming: false, id: newId }
@@ -151,26 +173,35 @@ export function useChatActions({
                 );
               });
             });
+
+            // Cleanly close and refresh on completion
+            closeEventSource();
+            setIsLoading(false);
+            refetchConversations();
+            queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
             break;
           }
 
-          case "message_complete":
-          case StreamEventType.MessageComplete: {
-            const completeBuffer = deltaBufferRef.current.get(aiMsgId) || "";
+          case "human_gate_awaiting": {
+            const finalBuffer = deltaBufferRef.current.get(aiMsgId) || "";
             cleanupMessageResources(aiMsgId);
 
             startTransition(() => {
               setMessages((prev) => {
                 const currentMessage = prev.find((msg) => msg.id === aiMsgId);
-                const newText = (currentMessage?.text || "") + completeBuffer;
-                const newId = data.assistantMessageId || aiMsgId;
+                const newText = (currentMessage?.text || "") + finalBuffer;
                 return prev.map((msg) =>
                   msg.id === aiMsgId
-                    ? { ...msg, text: newText, isStreaming: false, id: newId }
+                    ? { ...msg, text: newText, isStreaming: false, awaitingApproval: true }
                     : msg
                 );
               });
             });
+
+            closeEventSource();
+            setIsLoading(false);
+            refetchConversations();
+            queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
             break;
           }
 
@@ -183,21 +214,25 @@ export function useChatActions({
               setMessages((prev) =>
                 prev.map((msg) => {
                   if (msg.id !== aiMsgId) return msg;
+                  const errorMsg = typeof eventData === "string" ? eventData : (eventData?.message || "Unknown error");
                   const finalText = msg.text
                     ? msg.text + errorBuffer
-                    : errorBuffer || "I encountered an error: " + (data.message || "Unknown error");
+                    : errorBuffer || `I encountered an error: ${errorMsg}`;
                   return { ...msg, text: finalText, isStreaming: false, error: true };
                 })
               );
             });
+
+            closeEventSource();
+            setIsLoading(false);
             break;
           }
 
           case "timeout":
           case "rejected":
-          case "cancelled":
-          case "agent_complete": {
+          case "cancelled": {
             cleanupMessageResources(aiMsgId);
+            closeEventSource();
             setIsLoading(false);
             break;
           }
@@ -209,7 +244,7 @@ export function useChatActions({
         console.error("Failed to parse SSE message:", error);
       }
     },
-    [flushDeltaBuffer, scheduleUpdate, setMessages, setIsLoading]
+    [flushDeltaBuffer, scheduleUpdate, setMessages, setIsLoading, refetchConversations, queryClient]
   );
 
   const invokeAgentWithSSE = async (
@@ -218,16 +253,30 @@ export function useChatActions({
     aiMsgId: string,
     turnId: string
   ) => {
-    const sseUrl = `/api/sse/v1/${turnId}`;
+    const sseUrl = `/api/chat/v1/sse/${turnId}`;
     const eventSource = new EventSource(sseUrl);
     eventSourceRef.current = eventSource;
 
-    eventSource.addEventListener("message", (event) => {
-      handleStreamEvent(event, aiMsgId, conversationId);
+    const eventTypes = [
+      "message",
+      "token_stream",
+      "agent_complete",
+      "human_gate_awaiting",
+      "error",
+      "cancelled",
+      "node_start"
+    ];
+
+    eventTypes.forEach((type) => {
+      eventSource.addEventListener(type, (event) => {
+        handleStreamEvent(event, aiMsgId, conversationId);
+      });
     });
 
     eventSource.addEventListener("error", (error) => {
-      console.error("SSE error:", error);
+      // Standard EventSource error handler — only fallback if not already closed cleanly
+      if (!eventSourceRef.current) return;
+      console.error("SSE connection error:", error);
       closeEventSource();
       setMessages((prev) =>
         prev.map((msg) => {
@@ -241,13 +290,6 @@ export function useChatActions({
         })
       );
       setIsLoading(false);
-    });
-
-    eventSource.addEventListener("done", () => {
-      closeEventSource();
-      setIsLoading(false);
-      refetchConversations();
-      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
     });
   };
 
@@ -283,20 +325,12 @@ export function useChatActions({
     let conversationId = currentConversationId;
 
     try {
-      const invokeResponse = await chatApiService.invokeAgent({
+      const result = await chatApiService.invokeAgent({
         conversationId: conversationId || undefined,
         message: userInput,
       });
 
-      if (!invokeResponse || "success" in invokeResponse && !invokeResponse.success) {
-        const errorMsg = "success" in invokeResponse && typeof invokeResponse.error === 'string'
-          ? invokeResponse.error
-          : "Failed to invoke agent";
-        throw new Error(errorMsg);
-      }
-
-      const result = invokeResponse as InvokeAgentResponse;
-      const { turn_id, conversation_id } = result;
+      const { turn_id, conversation_id } = result.data;
       conversationId = conversation_id;
 
       if (!currentConversationId) {
@@ -316,7 +350,7 @@ export function useChatActions({
           if (msg.id !== aiMsgId) return msg;
           return {
             ...msg,
-            text: "I encountered an error connecting to the AI service.",
+            text: getErrorMessage(error) || "I encountered an error connecting to the AI service.",
             isStreaming: false,
             error: true,
           };
@@ -396,20 +430,12 @@ export function useChatActions({
     deltaBufferRef.current.set(aiMsgId, "");
 
     try {
-      const invokeResponse = await chatApiService.invokeAgent({
+      const result = await chatApiService.invokeAgent({
         conversationId: currentConversationId,
         message: userMessage.text,
       });
 
-      if (!invokeResponse || "success" in invokeResponse && !invokeResponse.success) {
-        const errorMsg = "success" in invokeResponse && typeof invokeResponse.error === 'string'
-          ? invokeResponse.error
-          : "Failed to invoke agent";
-        throw new Error(errorMsg);
-      }
-
-      const result = invokeResponse as InvokeAgentResponse;
-      const { turn_id } = result;
+      const { turn_id } = result.data;
       await invokeAgentWithSSE(currentConversationId!, userMessage.text, aiMsgId, turn_id);
     } catch (error) {
       console.error("Retry failed:", error);
@@ -419,7 +445,7 @@ export function useChatActions({
           if (msg.id !== aiMsgId) return msg;
           return {
             ...msg,
-            text: "I encountered an error. Please try again.",
+            text: getErrorMessage(error) || "I encountered an error. Please try again.",
             isStreaming: false,
             error: true,
           };

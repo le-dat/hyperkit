@@ -37,21 +37,38 @@ class AgentState(TypedDict):
     approved: bool
 
 
-def node_process(state: AgentState) -> dict:
+async def node_process(state: AgentState) -> dict:
     """Main reasoning node — calls LLM with bound MCP tools and returns AI response."""
     try:
         llm = get_llm(TaskType.REASONING)
         if _mcp_tools_cache is not None:
             llm = llm.bind_tools(_mcp_tools_cache)
-        response = llm.invoke(state["messages"])
-        if not hasattr(response, "content"):
-            raise TypeError(f"LLM response missing 'content' attribute: {type(response)}")
+        
+        full_content = ""
+        # Consume the stream to trigger on_chat_model_stream events
+        async for chunk in llm.astream(state["messages"]):
+            if chunk.content:
+                if isinstance(chunk.content, list):
+                    for block in chunk.content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            full_content += block.get("text", "")
+                        elif isinstance(block, str):
+                            full_content += block
+                elif isinstance(chunk.content, str):
+                    full_content += chunk.content
+                else:
+                    full_content += str(chunk.content)
+        
         return {
-            "messages": [AIMessage(content=response.content)],
-            "result": response.content,
+            "messages": [AIMessage(content=full_content)],
+            "result": full_content,
             "errors": [],
         }
     except Exception as e:
+        print(f"[Supervisor Error] node_process failed: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        
         prior = state.get("errors", [])
         errors = [str(e)] + prior
         errors = errors[:3]
