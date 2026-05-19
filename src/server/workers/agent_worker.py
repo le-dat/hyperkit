@@ -117,27 +117,23 @@ async def run_agent_task(
                 if etype == "on_chat_model_stream":
                     chunk = event["data"]["chunk"].content
                     if chunk:
-                        # chunk can be str or list of content blocks
+                        text_chunk = ""
                         if isinstance(chunk, list):
                             for block in chunk:
                                 if isinstance(block, dict) and block.get("type") == "text":
-                                    text = block.get("text", "")
-                                    full_response += text
-                                    await redis.publish(
-                                        f"sse:{turn_id}",
-                                        json.dumps({"event": "token_stream", "data": text}),
-                                    )
+                                    text_chunk += block.get("text", "")
                                 elif isinstance(block, str):
-                                    full_response += block
-                                    await redis.publish(
-                                        f"sse:{turn_id}",
-                                        json.dumps({"event": "token_stream", "data": block}),
-                                    )
+                                    text_chunk += block
+                        elif isinstance(chunk, str):
+                            text_chunk = chunk
                         else:
-                            full_response += chunk
+                            text_chunk = str(chunk)
+
+                        if text_chunk:
+                            full_response += text_chunk
                             await redis.publish(
                                 f"sse:{turn_id}",
-                                json.dumps({"event": "token_stream", "data": chunk}),
+                                json.dumps({"event": "token_stream", "data": text_chunk}),
                             )
 
                 elif etype == "on_chain_start" and event.get("name") in ("process", "human_gate"):
@@ -166,6 +162,28 @@ async def run_agent_task(
 
         # ── 4. Budget check ──────────────────────────────────────────────
         await check_budget_and_alert("run_agent_task", cost_usd)
+
+        # ── 4.5 checkpointer state recovery fallback & errors ────────────
+        state_snapshot = await graph.aget_state(config)
+        final_state = state_snapshot.values if state_snapshot else {}
+
+        # 1. Assert task failure if final state contains errors
+        errors = final_state.get("errors", [])
+        attempts = final_state.get("attempts", 0)
+        from agents.supervisor import MAX_ATTEMPTS
+        if errors and attempts >= MAX_ATTEMPTS:
+            raise RuntimeError(f"Agent reasoning failed: {errors[0]}")
+
+        # 2. State recovery: fallback to final state results if full_response is empty
+        if not full_response:
+            final_result = final_state.get("result", "")
+            if final_result:
+                full_response = final_result
+            else:
+                # Fallback to last AIMessage
+                messages_list = final_state.get("messages", [])
+                if messages_list and hasattr(messages_list[-1], "content") and messages_list[-1].content:
+                    full_response = messages_list[-1].content
 
         # ── 5. Persist assistant response to PostgreSQL ─────────────────
         if full_response:

@@ -19,8 +19,8 @@ export function ToolItem({ tool, onConnect }: ToolItemProps) {
     if (status !== "disconnected") return;
     setStatus("connecting");
     try {
-      const success = await mcpService.connect(tool.id);
-      if (success) {
+      const response = await mcpService.connect(tool.id);
+      if (response?.success) {
         setStatus("connected");
         onConnect(tool.id);
       } else {

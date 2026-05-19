@@ -63,8 +63,6 @@ export function createProxyHandler(config: ServiceConfig) {
         }
       }
 
-      console.log("fullUrl", fullUrl);
-
       // Handle streaming requests with native fetch
       if (isStreamingRequest) {
         console.log("[Proxy] Streaming request detected, using native fetch");
@@ -102,9 +100,6 @@ export function createProxyHandler(config: ServiceConfig) {
             }),
             {
               status: 500,
-              headers: {
-                "Content-Type": "application/json",
-              },
             },
           );
         }

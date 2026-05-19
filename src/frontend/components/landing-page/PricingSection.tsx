@@ -3,7 +3,7 @@
 import { PATH } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
-import { ButtonLink } from "../ui/button";
+import { Button, ButtonLink } from "../ui/button";
 import { ScrollReveal } from "./ScrollReveal";
 
 const PRICING_TIERS = [
@@ -169,15 +169,25 @@ export function PricingSection() {
                     </li>
                   ))}
                 </ul>
-                <ButtonLink
-                  href={tier.disabled ? "#" : PATH.agent}
-                  variant={tier.popular ? "gradient" : "outline"}
-                  className="w-full"
-                  size="lg"
-                  disabled={tier.disabled}
-                >
-                  {tier.cta}
-                </ButtonLink>
+                {tier.disabled ? (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    size="lg"
+                    disabled
+                  >
+                    {tier.cta}
+                  </Button>
+                ) : (
+                  <ButtonLink
+                    href={PATH.agent}
+                    variant={tier.popular ? "gradient" : "outline"}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {tier.cta}
+                  </ButtonLink>
+                )}
               </div>
             </ScrollReveal>
           ))}
