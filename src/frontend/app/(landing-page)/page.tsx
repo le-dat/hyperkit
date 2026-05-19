@@ -1,5 +1,9 @@
 "use client";
 
+import { useAuth } from "@clerk/nextjs";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { PATH } from "@/lib/constants";
 import { DashboardSection } from "@/components/landing-page/DashboardSection";
 import { FinanceModernSection } from "@/components/landing-page/FinanceModernSection";
 import { Footer } from "@/components/landing-page/Footer";
@@ -11,6 +15,15 @@ import { TestimonialsSection } from "@/components/landing-page/TestimonialsSecti
 import { cn } from "@/lib/utils";
 
 export default function LandingPage() {
+  const { isSignedIn } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isSignedIn) {
+      router.replace(PATH.agent);
+    }
+  }, [isSignedIn, router]);
+
   return (
     <div
       className={cn(

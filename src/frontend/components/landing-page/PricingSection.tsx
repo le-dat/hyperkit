@@ -35,6 +35,7 @@ const PRICING_TIERS = [
     ],
     cta: "Start Free Trial",
     popular: true,
+    disabled: true,
   },
   {
     name: "Enterprise",
@@ -50,6 +51,7 @@ const PRICING_TIERS = [
     ],
     cta: "Contact Sales",
     popular: false,
+    disabled: true,
   },
 ];
 
@@ -99,11 +101,12 @@ export function PricingSection() {
             >
               <div
                 className={cn(
-                  "relative p-4 md:p-8 rounded-2xl border transition-all duration-300 hover-lift",
-                  tier.popular
-                    ? "bg-hyper-900/50 border-hyper-accent/50 shadow-lg shadow-hyper-accent/10"
-                    : "bg-hyper-900/30 border-hyper-800 hover:border-hyper-700",
-                  "mb-2 md:mb-0",
+                  "relative p-4 md:p-8 rounded-2xl border transition-all duration-300",
+                  tier.disabled
+                    ? "bg-hyper-900/20 border-hyper-800/50 opacity-60"
+                    : tier.popular
+                      ? "bg-hyper-900/50 border-hyper-accent/50 shadow-lg shadow-hyper-accent/10 hover-lift"
+                      : "bg-hyper-900/30 border-hyper-800 hover:border-hyper-700 hover-lift",
                 )}
               >
                 {tier.popular && (
@@ -167,10 +170,11 @@ export function PricingSection() {
                   ))}
                 </ul>
                 <ButtonLink
-                  href={PATH.agent}
+                  href={tier.disabled ? "#" : PATH.agent}
                   variant={tier.popular ? "gradient" : "outline"}
                   className="w-full"
                   size="lg"
+                  disabled={tier.disabled}
                 >
                   {tier.cta}
                 </ButtonLink>
