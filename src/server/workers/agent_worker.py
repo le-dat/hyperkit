@@ -22,6 +22,60 @@ def _utcnow():
     return datetime.now(timezone.utc)
 
 
+class StreamThoughtParser:
+    def __init__(self):
+        self.in_thought = False
+        self.thought_tag_seen = False
+        self.buffer = ""
+
+    def feed(self, chunk: str) -> list[tuple[str, str]]:
+        self.buffer += chunk
+        events = []
+
+        if not self.thought_tag_seen and "<thought>" in self.buffer:
+            self.thought_tag_seen = True
+            self.in_thought = True
+            pre_thought, post_thought = self.buffer.split("<thought>", 1)
+            if pre_thought:
+                events.append(("token_stream", pre_thought))
+            self.buffer = post_thought
+
+        if self.in_thought and "</thought>" in self.buffer:
+            self.in_thought = False
+            thought_content, post_thought = self.buffer.split("</thought>", 1)
+            if thought_content:
+                events.append(("thought_stream", thought_content))
+            self.buffer = post_thought
+
+        if self.in_thought:
+            safe_len = max(0, len(self.buffer) - 15)
+            if safe_len > 0:
+                events.append(("thought_stream", self.buffer[:safe_len]))
+                self.buffer = self.buffer[safe_len:]
+        else:
+            if self.thought_tag_seen:
+                if self.buffer:
+                    events.append(("token_stream", self.buffer))
+                    self.buffer = ""
+            else:
+                safe_len = max(0, len(self.buffer) - 15)
+                if safe_len > 0:
+                    events.append(("token_stream", self.buffer[:safe_len]))
+                    self.buffer = self.buffer[safe_len:]
+
+        return events
+
+    def flush(self) -> list[tuple[str, str]]:
+        events = []
+        if self.buffer:
+            if self.in_thought:
+                events.append(("thought_stream", self.buffer))
+            else:
+                events.append(("token_stream", self.buffer))
+            self.buffer = ""
+        return events
+
+
 async def run_agent_task(
     ctx: dict,
     *,
@@ -77,8 +131,10 @@ async def run_agent_task(
         # ── 3. Stream agent with cost tracking and cancellation checks ──
         config = {"configurable": {"thread_id": conversation_id}}
         full_response = ""
+        full_thoughts = ""
         tokens_used = 0
         cost_usd = 0.0
+        parser = StreamThoughtParser()
 
         with get_openai_callback() as cb:
             async for event in graph.astream_events(
@@ -130,11 +186,54 @@ async def run_agent_task(
                             text_chunk = str(chunk)
 
                         if text_chunk:
-                            full_response += text_chunk
-                            await redis.publish(
-                                f"sse:{turn_id}",
-                                json.dumps({"event": "token_stream", "data": text_chunk}),
-                            )
+                            parsed_events = parser.feed(text_chunk)
+                            for pevent_type, pdata in parsed_events:
+                                if pevent_type == "thought_stream":
+                                    full_thoughts += pdata
+                                    await redis.publish(
+                                        f"sse:{turn_id}",
+                                        json.dumps({"event": "thought_stream", "data": pdata}),
+                                    )
+                                else:
+                                    full_response += pdata
+                                    await redis.publish(
+                                        f"sse:{turn_id}",
+                                        json.dumps({"event": "token_stream", "data": pdata}),
+                                    )
+
+                elif etype == "on_tool_start":
+                    tool_name = event["name"]
+                    tool_input = event["data"].get("input", "")
+                    await redis.publish(
+                        f"sse:{turn_id}",
+                        json.dumps({
+                            "event": "agent_thinking",
+                            "data": {
+                                "step": "start",
+                                "tool": tool_name,
+                                "input": tool_input,
+                                "status": f"Running tool: {tool_name}..."
+                            }
+                        }),
+                    )
+
+                elif etype == "on_tool_end":
+                    tool_name = event["name"]
+                    tool_output = event["data"].get("output", "")
+                    str_output = str(tool_output)
+                    truncated_output = str_output[:1000] + "..." if len(str_output) > 1000 else str_output
+                    await redis.publish(
+                        f"sse:{turn_id}",
+                        json.dumps({
+                            "event": "agent_thinking",
+                            "data": {
+                                "step": "end",
+                                "tool": tool_name,
+                                "output": truncated_output,
+                                "status": f"Completed tool: {tool_name}"
+                            }
+                        }),
+                    )
 
                 elif etype == "on_chain_start" and event.get("name") in ("process", "human_gate"):
                     await redis.publish(
@@ -156,6 +255,21 @@ async def run_agent_task(
                     )
                     await redis.hset(f"session:{turn_id}", "status", "awaiting_approval")
                     return  # Worker stops here — resume via /approve endpoint
+
+            # Flush any remaining buffer in parser
+            for pevent_type, pdata in parser.flush():
+                if pevent_type == "thought_stream":
+                    full_thoughts += pdata
+                    await redis.publish(
+                        f"sse:{turn_id}",
+                        json.dumps({"event": "thought_stream", "data": pdata}),
+                    )
+                else:
+                    full_response += pdata
+                    await redis.publish(
+                        f"sse:{turn_id}",
+                        json.dumps({"event": "token_stream", "data": pdata}),
+                    )
 
             tokens_used = cb.total_tokens
             cost_usd = cb.total_cost
@@ -185,10 +299,24 @@ async def run_agent_task(
                 if messages_list and hasattr(messages_list[-1], "content") and messages_list[-1].content:
                     full_response = messages_list[-1].content
 
+        # Extract thoughts if they are still embedded in full_response
+        if "<thought>" in full_response and "</thought>" in full_response:
+            parts = full_response.split("</thought>", 1)
+            thought_part = parts[0].split("<thought>", 1)[-1]
+            if not full_thoughts:
+                full_thoughts = thought_part
+            full_response = parts[1]
+        elif "<thought>" in full_response:
+            parts = full_response.split("<thought>", 1)
+            if not full_thoughts:
+                full_thoughts = parts[1]
+            full_response = parts[0]
+
         # ── 5. Persist assistant response to PostgreSQL ─────────────────
         if full_response:
             await save_message(
                 conversation_id, user_id, "assistant", full_response,
+                thoughts=full_thoughts or None,
                 tokens_used=tokens_used, cost_usd=cost_usd,
             )
 

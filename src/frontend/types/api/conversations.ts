@@ -27,6 +27,7 @@ export interface Message {
   conversation_id?: string;
   role: MessageRole;
   content: string;
+  thoughts?: string;
   tokens_used?: number;
   cost_usd?: number;
   timestamp?: string;
@@ -44,14 +45,27 @@ export type SendMessageDto = {
 };
 export type SendMessageSuccess = ApiSuccess<Message>;
 
+export interface ThinkingStep {
+  id: string;
+  tool: string;
+  input?: any;
+  output?: any;
+  status: string;
+  isCompleted: boolean;
+  timestamp: string;
+}
+
 // UI Types for Chat Interface
 export interface ChatMessage {
   id: string;
   role: MessageRole;
   text: string;
+  thoughts?: string;
+  isThinking?: boolean;
   created_at: string;
   isStreaming?: boolean;
   error?: boolean;
+  thinkingSteps?: ThinkingStep[];
 }
 
 export interface ChatSession {

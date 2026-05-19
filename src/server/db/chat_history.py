@@ -35,13 +35,13 @@ async def ensure_conversation(conversation_id: str, user_id: str, first_message:
 
 async def save_message(
     conversation_id: str, user_id: str, role: str, content: str,
-    tokens_used: int = 0, cost_usd: float = 0.0,
+    thoughts: str = None, tokens_used: int = 0, cost_usd: float = 0.0,
 ) -> None:
     # Ownership is verified by the route layer before calling this
     async with AsyncSessionLocal() as db:
         db.add(Message(
             conversation_id=conversation_id,
-            role=role, content=content,
+            role=role, content=content, thoughts=thoughts,
             tokens_used=tokens_used, cost_usd=cost_usd,
         ))
         await db.commit()

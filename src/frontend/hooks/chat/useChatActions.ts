@@ -123,6 +123,24 @@ export function useChatActions({
         if (!eventType) return;
 
         switch (eventType) {
+          case "thought_stream": {
+            const delta = typeof eventData === "string" ? eventData : (eventData?.delta || "");
+            if (delta) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === aiMsgId
+                    ? {
+                        ...msg,
+                        thoughts: (msg.thoughts || "") + delta,
+                        isThinking: true,
+                      }
+                    : msg
+                )
+              );
+            }
+            break;
+          }
+
           case "token_stream":
           case "content_delta":
           case StreamEventType.ContentDelta: {
@@ -131,6 +149,15 @@ export function useChatActions({
               const currentBuffer = deltaBufferRef.current.get(aiMsgId) || "";
               deltaBufferRef.current.set(aiMsgId, currentBuffer + delta);
               scheduleUpdate(aiMsgId);
+
+              // Seamlessly turn off thinking mode when we start receiving the actual text tokens
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === aiMsgId && msg.isThinking
+                    ? { ...msg, isThinking: false }
+                    : msg
+                )
+              );
             }
             break;
           }
@@ -142,7 +169,9 @@ export function useChatActions({
               flushDeltaBuffer(aiMsgId);
               setMessages((prev) =>
                 prev.map((msg) =>
-                  msg.id === aiMsgId ? { ...msg, text: (msg.text || "") + text } : msg
+                  msg.id === aiMsgId
+                    ? { ...msg, text: (msg.text || "") + text, isThinking: false }
+                    : msg
                 )
               );
             }
@@ -168,7 +197,7 @@ export function useChatActions({
                 const newId = eventData?.assistantMessageId || aiMsgId;
                 return prev.map((msg) =>
                   msg.id === aiMsgId
-                    ? { ...msg, text: newText, isStreaming: false, id: newId }
+                    ? { ...msg, text: newText, isStreaming: false, id: newId, isThinking: false }
                     : msg
                 );
               });
@@ -237,6 +266,44 @@ export function useChatActions({
             break;
           }
 
+          case "agent_thinking": {
+            const stepData = eventData;
+            if (stepData && typeof stepData === "object") {
+              setMessages((prev) =>
+                prev.map((msg) => {
+                  if (msg.id !== aiMsgId) return msg;
+
+                  const currentSteps = msg.thinkingSteps || [];
+                  const updatedSteps = [...currentSteps];
+
+                  if (stepData.step === "end") {
+                    const lastStartIndex = updatedSteps.map((s) => s.tool).lastIndexOf(stepData.tool);
+                    if (lastStartIndex !== -1) {
+                      updatedSteps[lastStartIndex] = {
+                        ...updatedSteps[lastStartIndex],
+                        status: stepData.status,
+                        output: stepData.output,
+                        isCompleted: true,
+                      };
+                    }
+                  } else {
+                    updatedSteps.push({
+                      id: `${Date.now()}-${stepData.tool}`,
+                      tool: stepData.tool,
+                      input: stepData.input,
+                      status: stepData.status,
+                      isCompleted: false,
+                      timestamp: new Date().toISOString(),
+                    });
+                  }
+
+                  return { ...msg, thinkingSteps: updatedSteps };
+                })
+              );
+            }
+            break;
+          }
+
           default:
             break;
         }
@@ -260,11 +327,13 @@ export function useChatActions({
     const eventTypes = [
       "message",
       "token_stream",
+      "thought_stream",
       "agent_complete",
       "human_gate_awaiting",
       "error",
       "cancelled",
-      "node_start"
+      "node_start",
+      "agent_thinking"
     ];
 
     eventTypes.forEach((type) => {

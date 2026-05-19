@@ -4,7 +4,7 @@ from typing import TypedDict, Annotated
 import operator
 import os
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.tools import StructuredTool
 from langgraph.graph import StateGraph, END
 
@@ -44,9 +44,16 @@ async def node_process(state: AgentState) -> dict:
         if _mcp_tools_cache is not None:
             llm = llm.bind_tools(_mcp_tools_cache)
         
+        system_msg = SystemMessage(
+            content=(
+                "Prior to writing your final response, you MUST output your step-by-step thinking process, search strategy, and planning inside <thought>...</thought> tags at the very beginning of your output. Once done, close the tag and write your final user-facing response."
+            )
+        )
+        messages_to_send = [system_msg] + state["messages"]
+        
         full_content = ""
         # Consume the stream to trigger on_chat_model_stream events
-        async for chunk in llm.astream(state["messages"]):
+        async for chunk in llm.astream(messages_to_send):
             if chunk.content:
                 if isinstance(chunk.content, list):
                     for block in chunk.content:

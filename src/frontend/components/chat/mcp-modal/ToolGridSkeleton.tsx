@@ -6,7 +6,7 @@ interface ToolGridSkeletonProps {
 
 export function ToolGridSkeleton({ count = 3 }: ToolGridSkeletonProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div className="flex flex-col gap-2">
       {Array.from({ length: count }).map((_, index) => (
         <div
           key={index}

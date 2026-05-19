@@ -1,18 +1,22 @@
 export function ToolItemSkeleton() {
   return (
-    <div className="flex flex-col h-[180px] p-4 rounded-xl bg-hyper-900 border border-hyper-800 animate-pulse">
-      {/* Title skeleton */}
-      <div className="h-5 bg-hyper-800 rounded w-3/4 mb-2" />
+    <div className="flex items-center gap-3 p-3 rounded-xl border border-hyper-800 bg-hyper-900/50 animate-pulse">
+      {/* Icon skeleton */}
+      <div className="w-9 h-9 rounded-lg bg-hyper-800 shrink-0" />
 
-      {/* Description skeleton - 3 lines */}
-      <div className="space-y-2 mb-4 flex-1">
-        <div className="h-3 bg-hyper-800 rounded w-full" />
-        <div className="h-3 bg-hyper-800 rounded w-5/6" />
-        <div className="h-3 bg-hyper-800 rounded w-4/6" />
+      {/* Content skeleton */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <div className="h-4 bg-hyper-800 rounded w-1/4" />
+          <div className="h-3.5 bg-hyper-800 rounded w-12" />
+        </div>
+        <div className="h-3 bg-hyper-800 rounded w-2/3 mt-2" />
       </div>
 
       {/* Button skeleton */}
-      <div className="h-10 bg-hyper-800 rounded-lg w-24 ml-auto" />
+      <div className="shrink-0">
+        <div className="h-7 bg-hyper-800 rounded-lg w-16" />
+      </div>
     </div>
   );
 }

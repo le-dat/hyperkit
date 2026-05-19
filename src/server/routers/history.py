@@ -22,6 +22,7 @@ class ConversationItem(BaseModel):
 class MessageItem(BaseModel):
     role: str
     content: str
+    thoughts: str | None = None
     tokens_used: int
     cost_usd: float
     created_at: str
@@ -113,6 +114,7 @@ async def get_messages(
         MessageItem(
             role=m.role,
             content=m.content,
+            thoughts=m.thoughts,
             tokens_used=m.tokens_used or 0,
             cost_usd=m.cost_usd or 0.0,
             created_at=m.created_at.isoformat(),

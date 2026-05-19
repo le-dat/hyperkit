@@ -1,7 +1,6 @@
 import {
   ChatMessage,
   ChatSession,
-  Conversation,
   Message,
   MessageRole,
 } from "@/types";
@@ -26,6 +25,7 @@ export function transformMessagesToChatMessages(
     role:
       msg.role === MessageRole.USER ? MessageRole.USER : MessageRole.ASSISTANT,
     text: typeof msg.content === 'string' ? msg.content : String(msg.content || ''),
+    thoughts: msg.thoughts,
     created_at: msg.created_at,
   }));
 }
