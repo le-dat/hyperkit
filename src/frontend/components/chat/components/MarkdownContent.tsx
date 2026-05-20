@@ -109,10 +109,11 @@ function createMarkdownComponents(isUser: boolean): Components {
 interface MarkdownContentProps {
   content: string;
   isUser: boolean;
+  className?: string;
 }
 
-export function MarkdownContent({ content, isUser }: MarkdownContentProps) {
-  const baseClasses = "text-sm md:text-base leading-6 md:leading-7 prose prose-invert";
+export function MarkdownContent({ content, isUser, className }: MarkdownContentProps) {
+  const baseClasses = className || "text-sm md:text-base leading-6 md:leading-7 prose prose-invert";
   const wrapperClasses = isUser ? "bg-hyper-700 rounded-lg px-3 py-2 w-fit max-w-full ml-auto" : "";
 
   const markdownContent = (

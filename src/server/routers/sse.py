@@ -51,12 +51,21 @@ async def stream(turn_id: str, request: Request, user: str = Depends(get_current
                     continue
 
                 payload = json.loads(msg["data"])
-                yield {
-                    "event": payload.get("event", "message"),
-                    "data": json.dumps(payload.get("data", {})),
-                }
+                # Forward data as-is. The worker already JSON-serializes everything correctly:
+                # - token_stream/thought_stream: data is a plain string
+                # - agent_complete/error/etc: data is an object (dict/list) that EventSourceResponse
+                #   will serialize correctly when writing the SSE line
+                event_name = payload.get("event", "message")
+                event_data = payload.get("data")
+                # Ensure data is always a string for SSE format
+                if isinstance(event_data, str):
+                    data_str = event_data
+                else:
+                    data_str = json.dumps(event_data) if event_data is not None else "{}"
 
-                if payload.get("event") in _TERMINAL_EVENTS:
+                yield {"event": event_name, "data": data_str}
+
+                if event_name in _TERMINAL_EVENTS:
                     break
         finally:
             await pubsub.unsubscribe(f"sse:{turn_id}")

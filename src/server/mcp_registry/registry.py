@@ -38,6 +38,8 @@ class MCPRegistry:
     def __init__(self):
         self._servers: dict[str, MCPServer] = {}
         self._sessions: dict[str, ClientSession] = {}
+        self._user_servers: dict[tuple[str, str], MCPServer] = {}
+        self._user_sessions: dict[tuple[str, str], ClientSession] = {}
 
     # ── Registration ────────────────────────────────────────────────────
 
@@ -143,21 +145,93 @@ class MCPRegistry:
             for cfg in self._servers.values()
         ]
 
+    # ── User-specific dynamic connection (Multi-Tenant) ──────────────────
+
+    async def connect_user(self, user_id: str, name: str, custom_env: dict[str, str]) -> ClientSession:
+        """Connect to a user-specific dynamic MCP server, caching the session."""
+        session_key = (user_id, name)
+        if session_key in self._user_sessions:
+            existing = self._user_sessions[session_key]
+            try:
+                if hasattr(existing, "_read_stream") and not existing._read_stream.is_closed:
+                    return existing
+            except Exception:
+                pass  # Fall through to reconnect
+
+        from mcp_registry.catalog import MCP_CATALOG
+        if name not in MCP_CATALOG:
+            raise ValueError(f"Server {name} not found in catalog")
+
+        catalog_item = MCP_CATALOG[name]
+
+        # Merge system environment with user-specific keys
+        process_env = os.environ.copy()
+        process_env.update(custom_env)
+
+        command = catalog_item.command.copy()
+        if name == "filesystem":
+            workspace_path = custom_env.get("MCP_FILESYSTEM_PATH", WORKSPACE_DIR)
+            os.makedirs(workspace_path, exist_ok=True)
+            command.append(workspace_path)
+
+        params = StdioServerParameters(
+            command=command[0],
+            args=command[1:],
+            env=process_env
+        )
+
+        read, write = await stdio_client(params).__aenter__()
+        session = ClientSession(read, write)
+        await session.initialize()
+
+        self._user_sessions[session_key] = session
+
+        # Discover tools
+        result = await session.list_tools()
+        tools_list = [t.model_dump() for t in result.tools]
+
+        self._user_servers[session_key] = MCPServer(
+            name=name,
+            transport="stdio",
+            command=command,
+            enabled=True,
+            tools=tools_list,
+            is_healthy=True,
+            last_check=datetime.utcnow()
+        )
+
+        logger.info("mcp_user_server_connected", user_id=user_id, name=name, num_tools=len(tools_list))
+        return session
+
+    async def call_user_tool(self, user_id: str, server: str, tool: str, args: dict[str, Any], custom_env: dict[str, str]) -> dict[str, Any]:
+        """Call a tool on a user-specific dynamic MCP server."""
+        try:
+            s = await self.connect_user(user_id, server, custom_env)
+        except Exception as e:
+            logger.error("mcp_user_connect_failed", user_id=user_id, server=server, tool=tool, error=str(e))
+            raise ValueError(f"MCP server '{server}' is not available for user: {e}") from e
+
+        try:
+            result = await s.call_tool(tool, arguments=args)
+            return {"content": result.content, "is_error": result.isError}
+        except Exception as e:
+            logger.error("mcp_user_tool_call_failed", user_id=user_id, server=server, tool=tool, error=str(e))
+            raise ValueError(f"MCP tool '{tool}' failed on server '{server}': {e}") from e
+
+    async def close_user_sessions(self, user_id: str) -> None:
+        """Close and clean up all active MCP sessions for a specific user."""
+        keys_to_remove = [k for k in self._user_sessions.keys() if k[0] == user_id]
+        for key in keys_to_remove:
+            try:
+                session = self._user_sessions.pop(key, None)
+                if session:
+                    await session.close()
+                self._user_servers.pop(key, None)
+            except Exception as e:
+                logger.warning("mcp_user_session_close_failed", user_id=user_id, server=key[1], error=str(e))
+
+
 
 # ── Default global registry ─────────────────────────────────────────────
 
 registry = MCPRegistry()
-
-# Ensure workspace directory exists
-os.makedirs(WORKSPACE_DIR, exist_ok=True)
-
-registry.register(MCPServer(
-    name="web_search",
-    transport="stdio",
-    command=["npx", "-y", "@modelcontextprotocol/server-brave-search"],
-))
-registry.register(MCPServer(
-    name="filesystem",
-    transport="stdio",
-    command=["npx", "-y", "@modelcontextprotocol/server-filesystem", WORKSPACE_DIR],
-))

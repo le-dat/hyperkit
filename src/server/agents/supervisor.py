@@ -37,12 +37,88 @@ class AgentState(TypedDict):
     approved: bool
 
 
+async def get_user_mcp_tools(user_id: str) -> list[StructuredTool]:
+    """Retrieve and build user-specific dynamic MCP tools."""
+    from db.models import AsyncSessionLocal, UserMcpConfig
+    from mcp_registry.crypto import decrypt_key
+    from mcp_registry.registry import registry
+    from sqlalchemy import select
+
+    # 1. Fetch enabled user MCP configs
+    async with AsyncSessionLocal() as db_session:
+        result = await db_session.execute(
+            select(UserMcpConfig).filter_by(user_id=user_id, enabled=True)
+        )
+        rows = result.scalars().all()
+
+    # 2. Decrypt secrets and build customized environments
+    user_tools: list[StructuredTool] = []
+    for row in rows:
+        custom_env = {}
+        if row.encrypted_secret:
+            try:
+                decrypted = decrypt_key(row.encrypted_secret)
+                if row.server_name == "postgres":
+                    custom_env["PG_CONNECTION_STRING"] = decrypted
+                elif row.server_name == "github":
+                    custom_env["GITHUB_PERSONAL_ACCESS_TOKEN"] = decrypted
+                elif row.server_name == "google_maps":
+                    custom_env["GOOGLE_MAPS_API_KEY"] = decrypted
+                elif row.server_name == "slack":
+                    custom_env["SLACK_BOT_TOKEN"] = decrypted
+                elif row.server_name == "web_search":
+                    custom_env["BRAVE_API_KEY"] = decrypted
+            except Exception as e:
+                print(f"[Supervisor] Decryption failed for {row.server_name}: {e}", flush=True)
+                continue
+
+        # 3. Connect to user server and get tools
+        try:
+            session = await registry.connect_user(user_id, row.server_name, custom_env)
+            server_key = (user_id, row.server_name)
+            server_cfg = registry._user_servers[server_key]
+            
+            for td in server_cfg.tools:
+                server_name = row.server_name
+                name = td["name"]
+                description = td.get("description", "")
+                
+                # Capture variables via default args to avoid late-binding closure bug
+                async def call(server_=server_name, name_=name, env_=custom_env, **kwargs) -> str:
+                    r = await registry.call_user_tool(user_id, server_, name_, kwargs, env_)
+                    content = r.get("content", "")
+                    if r.get("is_error"):
+                        raise RuntimeError(f"MCP tool error: {content}")
+                    return content
+                
+                user_tools.append(StructuredTool.from_function(
+                    coroutine=call,
+                    name=name,
+                    description=description
+                ))
+        except Exception as e:
+            print(f"[Supervisor] Failed to connect user server {row.server_name}: {e}", flush=True)
+            continue
+
+    return user_tools
+
+
 async def node_process(state: AgentState) -> dict:
     """Main reasoning node — calls LLM with bound MCP tools and returns AI response."""
     try:
         llm = get_llm(TaskType.REASONING)
+        
+        all_tools = []
         if _mcp_tools_cache is not None:
-            llm = llm.bind_tools(_mcp_tools_cache)
+            all_tools.extend(_mcp_tools_cache)
+            
+        user_id = state.get("user_id")
+        if user_id:
+            user_tools = await get_user_mcp_tools(user_id)
+            all_tools.extend(user_tools)
+
+        if all_tools:
+            llm = llm.bind_tools(all_tools)
         
         system_msg = SystemMessage(
             content=(

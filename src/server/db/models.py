@@ -1,5 +1,5 @@
 # ai-server/db/models.py
-from sqlalchemy import Column, String, Text, Integer, Float, DateTime, CheckConstraint, Index, text
+from sqlalchemy import Column, String, Text, Integer, Float, DateTime, CheckConstraint, Index, text, Boolean, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -83,3 +83,20 @@ class Message(Base):
     tokens_used = Column(Integer, default=0)
     cost_usd = Column(Float, default=0.0)
     created_at = Column(DateTime(timezone=True), default=_utcnow)
+
+
+class UserMcpConfig(Base):
+    __tablename__ = "user_mcp_configs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id = Column(String(100), nullable=False, index=True)
+    server_name = Column(String(50), nullable=False)
+    enabled = Column(Boolean, default=False, nullable=False)
+    encrypted_secret = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "server_name", name="uq_user_mcp_server"),
+        Index("ix_user_mcp_lookup", "user_id", "server_name"),
+    )

@@ -1,14 +1,26 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BaseService } from "./baseService";
-import { MCPTool } from "@/types";
 import { ApiSuccess } from "@/types/common/api-response";
 
-export interface MCPServerStatus {
+export interface McpCatalogField {
+  key: string;
+  label: string;
+  type: string;
+  placeholder: string;
+  required: boolean;
+  help_text: string | null;
+}
+
+export interface McpCatalogItem {
   name: string;
-  transport: string;
-  healthy: boolean;
-  tools: number;
-  last_check: string | null;
+  label: string;
+  description: string;
+  auth_type: "public" | "api_key" | "oauth";
+  category: string;
+  icon: string | null;
+  fields: McpCatalogField[];
+  enabled: boolean;
+  configured: boolean;
 }
 
 class McpService extends BaseService {
@@ -18,28 +30,31 @@ class McpService extends BaseService {
     this.api.defaults.baseURL = this.baseURL;
   }
 
-  async getServers(): Promise<MCPTool[]> {
-    const response = await this.get<ApiSuccess<MCPServerStatus[]>>("/servers");
-    const servers = response.data || [];
-
-    return servers.map((server) => ({
-      id: server.name,
-      name: server.name,
-      description: `${server.transport} • ${server.tools} tools`,
-      provider: "MCP",
-      installed: server.healthy,
-      status: server.healthy ? ("connected" as const) : ("disconnected" as const),
-      category: server.transport,
-      image: undefined,
-    }));
+  async getCatalog(): Promise<McpCatalogItem[]> {
+    const response = await this.get<ApiSuccess<McpCatalogItem[]>>("/catalog");
+    return response.data || [];
   }
 
+  async toggleMcp(name: string, enabled: boolean, secretKey?: string): Promise<ApiSuccess<any>> {
+    return this.post<ApiSuccess<any>>("/toggle", {
+      name,
+      enabled,
+      secret_key: secretKey,
+    });
+  }
+
+  async deleteKey(name: string): Promise<ApiSuccess<any>> {
+    return this.delete<ApiSuccess<any>>(`/${name}/key`);
+  }
+
+  /** @deprecated Use toggleMcp instead */
   async connect(name: string): Promise<ApiSuccess<any>> {
-    return this.post<ApiSuccess<any>>("/connect", { name });
+    return this.toggleMcp(name, true);
   }
 
+  /** @deprecated Use toggleMcp instead */
   async disconnect(name: string): Promise<ApiSuccess<any>> {
-    return this.post<ApiSuccess<any>>(`/${name}/disconnect`);
+    return this.toggleMcp(name, false);
   }
 }
 
