@@ -35,6 +35,7 @@ services:
         max-file: "3"
     networks:
       - chatbot_net
+      - npm_network
 
   redis:
     image: redis:7-alpine
@@ -66,16 +67,14 @@ services:
         max-file: "3"
     networks:
       - chatbot_net
+      - npm_network
 
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${REGISTRY}/${IMAGE_NAME}-backend:latest
     container_name: ai_chatbot_backend
     restart: unless-stopped
-    ports:
-      - "8000:8000"
     env_file:
       - .env
     environment:
@@ -88,12 +87,12 @@ services:
         condition: service_healthy
     networks:
       - chatbot_net
+      - npm_network
 
   worker:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${REGISTRY}/${IMAGE_NAME}-backend:latest
     container_name: ai_chatbot_worker
     restart: unless-stopped
     env_file:
@@ -116,3 +115,6 @@ volumes:
 networks:
   chatbot_net:
     name: chatbot_network
+  npm_network:
+    external: true
+    name: npm_network

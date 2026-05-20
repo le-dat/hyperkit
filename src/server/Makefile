@@ -5,7 +5,7 @@ DOCKER_DEV = docker compose -f docker-compose.yml -f docker-compose.override.yml
 DOCKER_PROD = docker compose -f docker-compose.yml
 
 .PHONY: dev-up dev-down dev-status dev-log dev-clean dev-db-shell dev-redis-shell \
-        prod-up prod-down prod-status prod-log
+        prod-up prod-down prod-status prod-log prod-restart
 
 # --- DEVELOPMENT (LOCAL) ---
 dev-up:

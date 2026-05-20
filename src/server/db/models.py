@@ -1,5 +1,5 @@
 # ai-server/db/models.py
-from sqlalchemy import Column, String, Text, Integer, Float, DateTime, CheckConstraint, Index
+from sqlalchemy import Column, String, Text, Integer, Float, DateTime, CheckConstraint, Index, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -46,6 +46,8 @@ async def init_db(database_url: str):
     # Auto-create all tables on startup (idempotent - uses IF NOT EXISTS)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Ensure 'thoughts' column exists for incremental migration
+        await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS thoughts TEXT;"))
 
 
 def _utcnow():
@@ -77,6 +79,7 @@ class Message(Base):
     conversation_id = Column(String(100), nullable=False, index=True)
     role = Column(String(20), nullable=False)
     content = Column(Text, nullable=False)
+    thoughts = Column(Text, nullable=True)
     tokens_used = Column(Integer, default=0)
     cost_usd = Column(Float, default=0.0)
     created_at = Column(DateTime(timezone=True), default=_utcnow)

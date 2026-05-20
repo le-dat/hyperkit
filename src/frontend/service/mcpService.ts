@@ -14,7 +14,7 @@ export interface MCPServerStatus {
 class McpService extends BaseService {
   constructor() {
     super();
-    this.baseURL = "/api/mcp";
+    this.baseURL = "/api/mcp/v1/mcp";
     this.api.defaults.baseURL = this.baseURL;
   }
 
@@ -35,11 +35,11 @@ class McpService extends BaseService {
   }
 
   async connect(name: string): Promise<ApiSuccess<any>> {
-    return this.post<ApiSuccess<any>>("/mcp/connect", { name });
+    return this.post<ApiSuccess<any>>("/connect", { name });
   }
 
   async disconnect(name: string): Promise<ApiSuccess<any>> {
-    return this.post<ApiSuccess<any>>(`/mcp/${name}/disconnect`);
+    return this.post<ApiSuccess<any>>(`/${name}/disconnect`);
   }
 }
 
