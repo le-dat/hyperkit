@@ -176,8 +176,19 @@ async def run_agent_task(
                         text_chunk = ""
                         if isinstance(chunk, list):
                             for block in chunk:
-                                if isinstance(block, dict) and block.get("type") == "text":
-                                    text_chunk += block.get("text", "")
+                                if isinstance(block, dict):
+                                    if block.get("type") == "text":
+                                        text_chunk += block.get("text", "")
+                                    elif block.get("type") == "thinking":
+                                        # Anthropic sends reasoning as separate thinking blocks
+                                        # Extract the thinking content and emit as thought_stream
+                                        thinking_content = block.get("thinking", "")
+                                        if thinking_content:
+                                            full_thoughts += thinking_content
+                                            await redis.publish(
+                                                f"sse:{turn_id}",
+                                                json.dumps({"event": "thought_stream", "data": thinking_content}),
+                                            )
                                 elif isinstance(block, str):
                                     text_chunk += block
                         elif isinstance(chunk, str):
