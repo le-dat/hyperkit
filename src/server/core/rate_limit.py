@@ -61,7 +61,7 @@ def rate_limit(
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(request: Request, *args, **kwargs):
-            redis = request.app.state.redis_cache
+            redis = request.app.state.redis_worker
             key = key_func(request)
 
             allowed, remaining, retry_after = await check_rate_limit(

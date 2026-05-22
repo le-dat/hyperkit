@@ -3,8 +3,17 @@ from sqlalchemy import Column, String, Text, Integer, Float, DateTime, CheckCons
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import declarative_base, sessionmaker
-from datetime import datetime, timezone
 from uuid import uuid4
+
+import sys
+from pathlib import Path
+
+# Resolve server/ path so db.utils can be imported
+_server_path = str(Path(__file__).resolve().parents[1])
+if _server_path not in sys.path:
+    sys.path.insert(0, _server_path)
+
+from db.utils import _utcnow
 
 Base = declarative_base()
 
@@ -48,10 +57,6 @@ async def init_db(database_url: str):
         await conn.run_sync(Base.metadata.create_all)
         # Ensure 'thoughts' column exists for incremental migration
         await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS thoughts TEXT;"))
-
-
-def _utcnow():
-    return datetime.now(timezone.utc)
 
 
 class Conversation(Base):

@@ -39,7 +39,7 @@ MCP_CATALOG: dict[str, McpCatalogItem] = {
         description="Fetch content from any URL and convert the HTML to clean Markdown.",
         auth_type=MCPAuthType.PUBLIC,
         category="Utility",
-        command=["npx", "-y", "@modelcontextprotocol/server-fetch"],
+        command=["npx", "-y", "mcp-server-fetch-typescript"],
         icon="Globe",
     ),
     "memory": McpCatalogItem(

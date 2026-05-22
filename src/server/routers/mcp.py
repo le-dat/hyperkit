@@ -9,6 +9,7 @@ from pydantic import BaseModel, model_validator
 from sqlalchemy import select
 
 from auth.clerk import get_current_user_dep
+from agents.user_mcp_tools import invalidate_user_tools_cache
 from core.rate_limit import check_rate_limit
 from mcp_registry.registry import registry, MCPServer
 from mcp_registry.catalog import MCP_CATALOG, MCPAuthType
@@ -119,8 +120,7 @@ async def disconnect(name: str, user: str = Depends(get_current_user_dep)):
 
     # Close session if open
     if name in registry._sessions:
-        await registry._sessions[name].close()
-        del registry._sessions[name]
+        await registry.close_session(name)
 
     # Remove from registry
     del registry._servers[name]
@@ -259,6 +259,8 @@ async def toggle_mcp(
             db_cfg.enabled = False
             # Close active subprocess connection for safety
             await registry.close_user_sessions(user)
+            # Invalidate cached user MCP tools so next request picks up new config
+            invalidate_user_tools_cache(user)
             
         await db_session.commit()
         await db_session.refresh(db_cfg)
@@ -289,6 +291,7 @@ async def delete_user_mcp_key(name: str, user: str = Depends(get_current_user_de
             db_cfg.encrypted_secret = None
             db_cfg.enabled = False
             await registry.close_user_sessions(user)
+            invalidate_user_tools_cache(user)
             await db_session.commit()
             
         return ApiSuccess(data={"status": "deleted", "name": name})

@@ -1,4 +1,3 @@
-# ai-server/core/lifespan.py
 import structlog
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -10,7 +9,7 @@ from config import settings
 from db import models as db_models
 from core.exceptions import DBConnectionError
 from core.redis import init_redis_pools, close_redis_pools
-from agents.supervisor import build_mcp_tools, set_mcp_tools
+from agents import build_mcp_tools, set_mcp_tools
 from state.checkpoint import cleanup_checkpointer
 
 logger = structlog.get_logger()

@@ -12,14 +12,34 @@ the module is first imported.
 """
 
 import os
+import structlog
+
 from config import settings
 
-IS_PROD = os.getenv("ENV") in ("production", "prod")
+logger = structlog.get_logger(__name__)
+
+
+def _is_production() -> bool:
+    """Check ENV at call time (not module load time)."""
+    return os.getenv("ENV") in ("production", "prod")
+
+
+def get_is_prod() -> bool:
+    """Public accessor so other modules can check without re-reading env."""
+    return _is_production()
 
 # Cached instances — created once and reused.
 _postgres_checkpointer = None
 _postgres_context = None
 _in_memory_checkpointer = None
+
+
+def _warn_inmemory():
+    """Log a warning when InMemorySaver is used (state lost on restart)."""
+    logger.warning(
+        "checkpoint_using_inmemory_warning",
+        message="InMemorySaver is active. All checkpoint state will be lost on restart. Set ENV=production to use PostgresSaver.",
+    )
 
 
 def get_checkpointer():
@@ -32,7 +52,7 @@ def get_checkpointer():
     """
     global _postgres_checkpointer, _postgres_context, _in_memory_checkpointer
 
-    if IS_PROD:
+    if _is_production():
         if _postgres_checkpointer is not None:
             return _postgres_checkpointer
 
@@ -44,6 +64,11 @@ def get_checkpointer():
             raise ValueError(
                 "DATABASE_URL or CHAT_DATABASE_URL must be set in production"
             )
+
+        # PostgresSaver.from_conn_string uses psycopg, not asyncpg.
+        # Strip asyncpg prefix if present so we get a valid conninfo string.
+        if database_url.startswith("postgresql+asyncpg://"):
+            database_url = database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
 
         # PostgresSaver.from_conn_string is a context manager;
         # call __enter__() to get the actual saver instance
@@ -58,6 +83,7 @@ def get_checkpointer():
 
         from langgraph.checkpoint.memory import InMemorySaver
 
+        _warn_inmemory()
         _in_memory_checkpointer = InMemorySaver()
         return _in_memory_checkpointer
 

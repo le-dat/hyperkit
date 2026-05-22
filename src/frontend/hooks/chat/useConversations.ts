@@ -1,3 +1,4 @@
+import { useAuth } from "@clerk/nextjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { toast } from "sonner";
@@ -7,6 +8,7 @@ import { transformConversationsToChatSessions } from "@/lib/chat/messageTransfor
 import { getErrorMessage } from "@/lib/api/apiUtils";
 
 export function useConversations() {
+  const { userId } = useAuth();
   const queryClient = useQueryClient();
 
   const {
@@ -15,7 +17,7 @@ export function useConversations() {
     refetch: refetchConversations,
     error: conversationsError,
   } = useQuery({
-    queryKey: ["conversations"],
+    queryKey: ["conversations", userId],
     queryFn: () => chatApiService.getConversations({ limit: 10, cursor: "" }),
   });
 

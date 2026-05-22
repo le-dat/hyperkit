@@ -1,4 +1,3 @@
-# ai-server/core/exceptions.py
 import structlog
 from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -8,14 +7,11 @@ logger = structlog.get_logger()
 
 
 class RedisConnectionError(HTTPException):
-    """Raised when the connection to Redis fails during startup or operation."""
-
     def __init__(self, detail: str = "Redis connection failed"):
         super().__init__(status_code=503, detail=detail)
 
 
 class DBConnectionError(HTTPException):
-    """Raised when the connection to the Database fails during startup or operation."""
 
     def __init__(self, detail: str = "Database connection failed"):
         super().__init__(status_code=503, detail=detail)
@@ -53,7 +49,8 @@ def setup_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):
-        logger.error("unhandled_error", error=str(exc))
+        request_id = getattr(request.state, "request_id", None)
+        logger.error("unhandled_error", request_id=request_id, error=str(exc))
         return JSONResponse(
             status_code=500,
             content={
@@ -61,7 +58,8 @@ def setup_exception_handlers(app: FastAPI) -> None:
                 "error": {
                     "message": "Internal Server Error",
                     "status": 500,
-                    "code": "INTERNAL_SERVER_ERROR"
+                    "code": "INTERNAL_SERVER_ERROR",
+                    "request_id": request_id,
                 }
             }
         )

@@ -14,6 +14,10 @@ dev-up:
 dev-down:
 	$(DOCKER_DEV) down
 
+dev-restart:
+	$(DOCKER_DEV) down
+	$(DOCKER_DEV) up -d --build
+
 dev-status:
 	$(DOCKER_DEV) ps
 

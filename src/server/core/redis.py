@@ -1,4 +1,3 @@
-# ai-server/core/redis.py
 import structlog
 import redis.asyncio as aioredis
 from typing import Any
@@ -35,7 +34,7 @@ async def init_redis_pools(app: Any) -> None:
             settings.redis_url,
             decode_responses=True,
             socket_connect_timeout=1,
-            socket_timeout=1,    # Fast-fail: 1s max waiting time to protect latency
+            socket_timeout=1,
             max_connections=30,
         )
 
