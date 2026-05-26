@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # LangSmith
     langchain_tracing_v2: bool = True
     langchain_api_key: str = ""
-    langchain_project: str = "ai-chatbot-prod"
+    langchain_project: str = "hyperkit-ai-prod"
 
     # Slack alerts
     slack_webhook_url: str = ""
