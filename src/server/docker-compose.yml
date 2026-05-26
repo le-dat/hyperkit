@@ -73,6 +73,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: ghcr.io/le-dat/hyperkit-backend:latest
     container_name: ai_chatbot_backend
     restart: unless-stopped
     env_file:
@@ -106,6 +107,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: ghcr.io/le-dat/hyperkit-backend:latest
     container_name: ai_chatbot_worker
     restart: unless-stopped
     env_file:
