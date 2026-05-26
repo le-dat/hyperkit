@@ -45,9 +45,15 @@ def make_summary_memory(llm: ChatOpenAI | ChatAnthropic):
 async def remember_entity(
     redis: aioredis.Redis, conv_id: str, key: str, value: str
 ) -> None:
-    """Store key facts (vendor, invoice ID) extracted from conversation."""
-    await redis.hset(f"session:{conv_id}:entities", key, value)
-    await redis.expire(f"session:{conv_id}:entities", settings.entity_ttl_seconds)
+    """Store key facts (vendor, invoice ID) extracted from conversation.
+
+    Uses a pipeline to atomically set the hash field and its TTL so the
+    entity is never left with an infinite TTL on crash between HSET and EXPIRE.
+    """
+    pipe = redis.pipeline()
+    pipe.hset(f"session:{conv_id}:entities", key, value)
+    pipe.expire(f"session:{conv_id}:entities", settings.entity_ttl_seconds)
+    await pipe.execute()
 
 
 async def recall_entity(

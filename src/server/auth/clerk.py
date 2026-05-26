@@ -1,5 +1,6 @@
 # ai-server/auth/clerk.py
 """Clerk JWT verification dependency."""
+import asyncio
 import re
 import structlog
 from functools import lru_cache
@@ -7,11 +8,11 @@ from functools import lru_cache
 import httpx
 import jwt
 from fastapi import HTTPException, Request
-from jwt import ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError, PyJWKClient
-
+from jwt import PyJWKClient, PyJWTError, PyJWKClientError
 
 # Module-level JWKS client cache (keyed by issuer URL)
 _jwks_cache: dict[str, PyJWKClient] = {}
+logger = structlog.get_logger(__name__)
 
 
 @lru_cache(maxsize=1)
@@ -28,15 +29,14 @@ def _get_issuer() -> str:
     if settings.clerk_secret_key and "@" in settings.clerk_secret_key:
         match = re.search(r"@([^/]+)", settings.clerk_secret_key)
         if match:
-            structlog.get_logger().warning(
+            logger.warning(
                 "clerk_issuer_parsed_from_secret_key",
                 note="This fallback is brittle — set clerk_issuer_url explicitly",
             )
             return f"https://{match.group(1)}"
 
-    raise HTTPException(
-        status_code=500,
-        detail="Clerk configuration missing — set CLERK_ISSUER_URL or CLERK_FRONTEND_API",
+    raise RuntimeError(
+        "Clerk configuration missing — set CLERK_ISSUER_URL or CLERK_FRONTEND_API"
     )
 
 
@@ -62,7 +62,9 @@ async def get_current_user(request: Request) -> str:
     try:
         issuer = _get_issuer()
         jwks_client = _get_jwks_client(issuer)
-        signing_key = jwks_client.get_signing_key_from_jwt(token)
+
+        # Run synchronous PyJWKClient key lookup in a background thread to prevent event-loop block
+        signing_key = await asyncio.to_thread(jwks_client.get_signing_key_from_jwt, token)
 
         payload = jwt.decode(
             token,
@@ -74,31 +76,32 @@ async def get_current_user(request: Request) -> str:
         sub = payload.get("sub")
         if not sub or not isinstance(sub, str) or not sub.strip():
             raise HTTPException(status_code=401, detail="Token missing valid 'sub' claim")
+        
         # Clerk user IDs follow the user_<ulid> pattern
         if not sub.startswith("user_"):
-            structlog.get_logger().warning("jwt_sub_unexpected_format", sub=sub)
+            logger.warning("jwt_sub_unexpected_format", sub=sub)
         return sub
 
-    except ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except InvalidAudienceError:
-        raise HTTPException(status_code=401, detail="Invalid token audience")
-    except InvalidIssuerError:
-        raise HTTPException(status_code=401, detail="Invalid token issuer")
-    except jwt.InvalidSignatureError as e:
-        structlog.get_logger().error("jwt_signature_invalid", error=str(e))
-        raise HTTPException(status_code=401, detail="Invalid token signature")
-    except jwt.DecodeError as e:
-        structlog.get_logger().error("jwt_decode_error", error=str(e))
-        raise HTTPException(status_code=401, detail="Malformed token")
+    except PyJWKClientError as e:
+        logger.error("jwks_client_error", error=str(e), issuer=issuer)
+        raise HTTPException(status_code=503, detail="Auth signature service unavailable")
     except httpx.RequestError as e:
-        structlog.get_logger().error("jwks_request_failed", error=str(e), issuer=issuer)
+        logger.error("jwks_request_failed", error=str(e), issuer=issuer)
         raise HTTPException(status_code=503, detail="Auth service unavailable")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.InvalidAudienceError:
+        raise HTTPException(status_code=401, detail="Invalid token audience")
+    except jwt.InvalidIssuerError:
+        raise HTTPException(status_code=401, detail="Invalid token issuer")
+    except PyJWTError as e:
+        logger.error("jwt_verification_failed", error_type=type(e).__name__, error=str(e))
+        raise HTTPException(status_code=401, detail="Invalid token")
     except HTTPException:
         raise
     except Exception as e:
-        structlog.get_logger().error("jwt_verification_failed", error=str(e))
-        raise HTTPException(status_code=401, detail="Invalid token")
+        logger.error("unexpected_auth_error", error=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error during authentication")
 
 
 async def get_current_user_dep(request: Request) -> str:

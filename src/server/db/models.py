@@ -1,10 +1,19 @@
 # ai-server/db/models.py
-from sqlalchemy import Column, String, Text, Integer, Float, DateTime, CheckConstraint, Index, text
+from sqlalchemy import Column, String, Text, Integer, Float, DateTime, CheckConstraint, Index, text, Boolean, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import declarative_base, sessionmaker
-from datetime import datetime, timezone
 from uuid import uuid4
+
+import sys
+from pathlib import Path
+
+# Resolve server/ path so db.utils can be imported
+_server_path = str(Path(__file__).resolve().parents[1])
+if _server_path not in sys.path:
+    sys.path.insert(0, _server_path)
+
+from db.utils import _utcnow
 
 Base = declarative_base()
 
@@ -50,10 +59,6 @@ async def init_db(database_url: str):
         await conn.execute(text("ALTER TABLE messages ADD COLUMN IF NOT EXISTS thoughts TEXT;"))
 
 
-def _utcnow():
-    return datetime.now(timezone.utc)
-
-
 class Conversation(Base):
     __tablename__ = "conversations"
 
@@ -83,3 +88,20 @@ class Message(Base):
     tokens_used = Column(Integer, default=0)
     cost_usd = Column(Float, default=0.0)
     created_at = Column(DateTime(timezone=True), default=_utcnow)
+
+
+class UserMcpConfig(Base):
+    __tablename__ = "user_mcp_configs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id = Column(String(100), nullable=False, index=True)
+    server_name = Column(String(50), nullable=False)
+    enabled = Column(Boolean, default=False, nullable=False)
+    encrypted_secret = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow)
+    updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "server_name", name="uq_user_mcp_server"),
+        Index("ix_user_mcp_lookup", "user_id", "server_name"),
+    )

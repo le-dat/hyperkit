@@ -6,7 +6,7 @@ import { Bot, LayoutGrid, Menu, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Logo } from "./navbar/Logo";
 import { MobileMenu } from "./navbar/MobileMenu";
-import { NavigationTabs } from "./navbar/NavigationTabs";
+// import { NavigationTabs } from "./navbar/NavigationTabs";
 import { UserProfile } from "./navbar/UserProfile";
 
 interface MenuItem {

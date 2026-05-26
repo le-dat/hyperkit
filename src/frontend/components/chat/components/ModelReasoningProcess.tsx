@@ -1,5 +1,6 @@
 import { Brain, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { MarkdownContent } from "./MarkdownContent";
 
 interface ModelReasoningProcessProps {
   thoughts?: string;
@@ -52,8 +53,12 @@ interface ReasoningBodyProps {
 function ReasoningBody({ isOpen, thoughts }: ReasoningBodyProps) {
   if (!isOpen) return null;
   return (
-    <div className="px-4 py-3 bg-hyper-950/10 text-slate-400/90 font-sans leading-relaxed whitespace-pre-wrap">
-      {thoughts}
+    <div className="px-4 py-3 bg-hyper-950/10 border-t border-hyper-800/40">
+      <MarkdownContent
+        content={thoughts}
+        isUser={false}
+        className="text-xs text-slate-400/90 leading-relaxed font-sans prose prose-xs prose-invert"
+      />
     </div>
   );
 }

@@ -50,18 +50,21 @@ async def save_message(
 async def get_conversation_messages(
     conversation_id: str, user_id: str, limit: int = 5
 ) -> list[Message]:
-    """Load last N messages for working memory (Tier 1). Verifies ownership."""
-    if not await _verify_ownership(conversation_id, user_id):
-        return []
+    """Load last N messages for working memory (Tier 1). Verifies ownership via JOIN."""
     async with AsyncSessionLocal() as db:
+        # Single query: JOIN conversation to verify ownership, then fetch messages
         result = await db.execute(
             select(Message.role, Message.content)
-            .where(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at.desc())  # Lấy tin nhắn mới nhất trước
+            .join(Conversation, Conversation.conversation_id == Message.conversation_id)
+            .where(
+                Conversation.conversation_id == conversation_id,
+                Conversation.user_id == user_id,
+            )
+            .order_by(Message.created_at.desc())
             .limit(limit)
         )
         rows = result.fetchall()
-        # Đảo ngược lại danh sách để trả về đúng thứ tự thời gian tăng dần
+        # Reverse to return in chronological order (newest last)
         return [Message(role=r.role, content=r.content) for r in reversed(rows)]
 
 
@@ -76,7 +79,7 @@ async def get_user_conversations(
         count_result = await db.execute(
             select(func.count(Conversation.id)).where(Conversation.user_id == user_id)
         )
-        total = count_result.scalar_one()
+        total = count_result.scalar()
 
         # Paginated results
         result = await db.execute(
