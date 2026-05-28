@@ -4,11 +4,8 @@ Caches UserMcpConfig lookups and decrypted sessions for 60 seconds to avoid
 hitting the database on every node_process invocation.
 """
 
-from typing import TYPE_CHECKING
 from datetime import datetime, timezone, timedelta
-
-if TYPE_CHECKING:
-    from langchain_core.tools import StructuredTool
+from langchain_core.tools import StructuredTool
 
 # TTL cache: (user_id, server_name) -> (timestamp, tools_list)
 _user_tools_cache: dict[tuple[str, str], tuple[datetime, list["StructuredTool"]]] = {}

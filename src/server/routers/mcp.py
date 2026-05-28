@@ -15,7 +15,7 @@ from mcp_registry.registry import registry, MCPServer
 from mcp_registry.catalog import MCP_CATALOG, MCPAuthType
 from mcp_registry.crypto import encrypt_key
 from db.models import AsyncSessionLocal, UserMcpConfig
-from core.schemas import ApiSuccess
+from core.schemas import ApiSuccess, RedisKeys
 
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
@@ -216,7 +216,7 @@ async def toggle_mcp(
     # Rate limit: 10 toggle requests per user per 60 seconds
     allowed, _, retry_after = await check_rate_limit(
         request.app.state.redis_cache,
-        f"mcp-toggle:{user}",
+        RedisKeys.rate_limit_mcp_toggle(user),
         limit=10,
         window_seconds=60,
     )

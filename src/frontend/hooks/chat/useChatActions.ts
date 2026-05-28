@@ -39,6 +39,7 @@ export function useChatActions({
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const activeTurnIdRef = useRef<string | null>(null);
 
   const deltaBufferRef = useRef<Map<string, string>>(new Map());
   const rafIdRef = useRef<Map<string, number>>(new Map());
@@ -96,6 +97,28 @@ export function useChatActions({
       abortControllerRef.current = null;
     }
   };
+
+  const handleAbort = useCallback(async () => {
+    const turnId = activeTurnIdRef.current;
+    if (!turnId) return;
+
+    try {
+      await chatApiService.cancelAgent(turnId);
+    } catch (error) {
+      console.error("Failed to cancel agent run:", error);
+    } finally {
+      closeEventSource();
+      setIsLoading(false);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.isStreaming
+            ? { ...msg, text: msg.text || "Stopped generating.", isStreaming: false, error: false }
+            : msg
+        )
+      );
+      activeTurnIdRef.current = null;
+    }
+  }, [closeEventSource, setIsLoading, setMessages]);
 
   const handleStreamEvent = useCallback(
     (event: MessageEvent, aiMsgId: string, conversationId: string) => {
@@ -400,6 +423,7 @@ export function useChatActions({
       });
 
       const { turn_id, conversation_id } = result.data;
+      activeTurnIdRef.current = turn_id;
       conversationId = conversation_id;
 
       if (!currentConversationId) {
@@ -505,6 +529,7 @@ export function useChatActions({
       });
 
       const { turn_id } = result.data;
+      activeTurnIdRef.current = turn_id;
       await invokeAgentWithSSE(currentConversationId!, userMessage.text, aiMsgId, turn_id);
     } catch (error) {
       console.error("Retry failed:", error);
@@ -529,5 +554,6 @@ export function useChatActions({
     handleNewChat,
     handleSelectChat,
     retryMessage,
+    handleAbort,
   };
 }

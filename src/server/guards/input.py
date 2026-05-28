@@ -32,7 +32,7 @@ _PII_PATTERNS = [
 ]
 
 
-def guard_input(message: str, user_id: str = None) -> str:
+def guard_input(message: str, user_id: str | None = None) -> str:
     """
     Sanitize user input before it goes to the LLM.
 

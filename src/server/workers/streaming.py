@@ -45,13 +45,13 @@ class TokenBatcher:
             return
         if self.thought_buf:
             thought_text = "".join(self.thought_buf)
-            await SSEEvent(SSEEventType.THOUGHT_STREAM, thought_text).publish(
+            await SSEEvent(SSEEventType.THOUGHT_STREAM, {"delta": thought_text}).publish(
                 self.redis, self.channel
             )
             self.thought_buf.clear()
         if self.text_buf:
             token_text = "".join(self.text_buf)
-            await SSEEvent(SSEEventType.TOKEN_STREAM, token_text).publish(
+            await SSEEvent(SSEEventType.TOKEN_STREAM, {"delta": token_text}).publish(
                 self.redis, self.channel
             )
             self.text_buf.clear()
@@ -82,28 +82,33 @@ class StreamThoughtParser:
                 events.append((SSEEventType.TOKEN_STREAM, pre_thought))
             self.buffer = post_thought
 
-        if self.in_thought and "</thought>" in self.buffer:
-            self.in_thought = False
-            thought_content, post_thought = self.buffer.split("</thought>", 1)
-            if thought_content:
-                events.append((SSEEventType.THOUGHT_STREAM, thought_content))
-            self.buffer = post_thought
-
-        elif self.in_thought:
-            # Inside <thought> but </thought> not yet in buffer
-            # Don't speculative-emit — wait for closing tag to arrive
-            pass
+        if self.in_thought:
+            if "</thought>" in self.buffer:
+                self.in_thought = False
+                thought_content, post_thought = self.buffer.split("</thought>", 1)
+                if thought_content:
+                    events.append((SSEEventType.THOUGHT_STREAM, thought_content))
+                self.buffer = post_thought
+            else:
+                # Protect potential split closing tag by keeping last 10 characters back
+                if len(self.buffer) > 10:
+                    emit_len = len(self.buffer) - 10
+                    emit_content = self.buffer[:emit_len]
+                    events.append((SSEEventType.THOUGHT_STREAM, emit_content))
+                    self.buffer = self.buffer[emit_len:]
         else:
             if self.thought_tag_seen:
-                # After </thought>, everything is token stream
+                # Post-thought: emit everything immediately
                 if self.buffer:
                     events.append((SSEEventType.TOKEN_STREAM, self.buffer))
                     self.buffer = ""
             else:
-                # No opening tag seen yet — emit everything
-                if self.buffer:
-                    events.append((SSEEventType.TOKEN_STREAM, self.buffer))
-                    self.buffer = ""
+                # Pre-thought: protect potential split opening tag by keeping last 9 characters back
+                if len(self.buffer) > 9:
+                    emit_len = len(self.buffer) - 9
+                    emit_content = self.buffer[:emit_len]
+                    events.append((SSEEventType.TOKEN_STREAM, emit_content))
+                    self.buffer = self.buffer[emit_len:]
 
         return events
 

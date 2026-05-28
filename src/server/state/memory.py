@@ -42,6 +42,8 @@ def make_summary_memory(llm: ChatOpenAI | ChatAnthropic):
 # ── Tier 3: Entity memory — Redis HSET, configurable TTL ────────────────
 
 
+from core.schemas import RedisKeys
+
 async def remember_entity(
     redis: aioredis.Redis, conv_id: str, key: str, value: str
 ) -> None:
@@ -51,8 +53,9 @@ async def remember_entity(
     entity is never left with an infinite TTL on crash between HSET and EXPIRE.
     """
     pipe = redis.pipeline()
-    pipe.hset(f"session:{conv_id}:entities", key, value)
-    pipe.expire(f"session:{conv_id}:entities", settings.entity_ttl_seconds)
+    entities_key = RedisKeys.entities(conv_id)
+    pipe.hset(entities_key, key, value)
+    pipe.expire(entities_key, settings.entity_ttl_seconds)
     await pipe.execute()
 
 
@@ -60,11 +63,11 @@ async def recall_entity(
     redis: aioredis.Redis, conv_id: str, key: str
 ) -> str | None:
     """Recall entity without user having to repeat it."""
-    return await redis.hget(f"session:{conv_id}:entities", key)
+    return await redis.hget(RedisKeys.entities(conv_id), key)
 
 
 async def recall_all_entities(
     redis: aioredis.Redis, conv_id: str
 ) -> dict[str, str]:
     """Recall all entities for a conversation."""
-    return dict(await redis.hgetall(f"session:{conv_id}:entities"))
+    return dict(await redis.hgetall(RedisKeys.entities(conv_id)))

@@ -1,4 +1,3 @@
-# ai-server/db/chat_history.py
 from sqlalchemy import select, func
 from db.models import AsyncSessionLocal, Conversation, Message
 
@@ -37,7 +36,6 @@ async def save_message(
     conversation_id: str, user_id: str, role: str, content: str,
     thoughts: str = None, tokens_used: int = 0, cost_usd: float = 0.0,
 ) -> None:
-    # Ownership is verified by the route layer before calling this
     async with AsyncSessionLocal() as db:
         db.add(Message(
             conversation_id=conversation_id,

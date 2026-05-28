@@ -1,9 +1,6 @@
 """MCP tool builder — discovers and caches MCP server tools."""
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from langchain_core.tools import StructuredTool
+from langchain_core.tools import StructuredTool
 
 # Global MCP tools cache — built once at startup via build_mcp_tools()
 _mcp_tools_cache: list["StructuredTool"] | None = None
@@ -23,9 +20,13 @@ async def build_mcp_tools() -> list["StructuredTool"]:
         # Capture server/name via default args to avoid late-binding closure bugs
         async def call(server_: str = server, name_: str = name, **kwargs) -> str:
             r = await registry.call_tool(server_, name_, kwargs)
-            content = r.get("content", "")
+            content = r.get("content")
             if r.get("is_error"):
-                raise RuntimeError(f"MCP tool error: {content}")
+                raise RuntimeError(f"MCP tool error: {content or 'unknown error'}")
+            # If content is empty or None, provide a fallback placeholder
+            if not content:
+                # Fallback response when MCP tool yields no result
+                return "[No result returned from MCP tool]"
             return content
 
         result.append(

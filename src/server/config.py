@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     slack_webhook_url: str = ""
 
     # CORS
-    frontend_url: str = ""  # must be set — app fails fast if omitted in production
+    frontend_url: str = "*"  # must be set — app fails fast if omitted in production
 
     # App
     max_conversations_limit: int = 50

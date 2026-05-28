@@ -35,8 +35,8 @@ MCP_CATALOG: dict[str, McpCatalogItem] = {
     # ── 1. PUBLIC SERVERS ───────────────────────────────────────────────
     "fetch": McpCatalogItem(
         name="fetch",
-        label="Web Fetcher",
-        description="Fetch content from any URL and convert the HTML to clean Markdown.",
+        label="Web Page Reader (Web Fetcher)",
+        description="Downloads and reads the text content from a specific web link (URL) you provide, converting it into clean, readable text. Note: This tool CANNOT search the internet for news—it only reads the exact link you give it.",
         auth_type=MCPAuthType.PUBLIC,
         category="Utility",
         command=["npx", "-y", "mcp-server-fetch-typescript"],
@@ -44,8 +44,8 @@ MCP_CATALOG: dict[str, McpCatalogItem] = {
     ),
     "memory": McpCatalogItem(
         name="memory",
-        label="Semantic Memory",
-        description="A persistent Knowledge Graph that helps the chatbot remember details over time.",
+        label="Long-Term Memory (Semantic Memory)",
+        description="Helps the chatbot remember important facts, your preferences, and details across different chat conversations using a Knowledge Graph so you don't have to repeat them.",
         auth_type=MCPAuthType.PUBLIC,
         category="Core",
         command=["npx", "-y", "@modelcontextprotocol/server-memory"],
@@ -53,28 +53,28 @@ MCP_CATALOG: dict[str, McpCatalogItem] = {
     ),
     "puppeteer": McpCatalogItem(
         name="puppeteer",
-        label="Browser Puppeteer",
-        description="Full browser automation. Take screenshots, click buttons, and scrape websites.",
+        label="Web Browser Automation (Puppeteer)",
+        description="Allows the chatbot to control a web browser. It can open pages, click buttons, interact with websites, and take screenshots just like a real human.",
         auth_type=MCPAuthType.PUBLIC,
         category="Utility",
         command=["npx", "-y", "@modelcontextprotocol/server-puppeteer"],
         icon="MonitorPlay",
     ),
-    "filesystem": McpCatalogItem(
-        name="filesystem",
-        label="Local Filesystem",
-        description="Secure read/write access to your designated workspace directory.",
-        auth_type=MCPAuthType.PUBLIC,
-        category="System",
-        command=["npx", "-y", "@modelcontextprotocol/server-filesystem"],
-        icon="FolderOpen",
-    ),
+    # "filesystem": McpCatalogItem(
+    #     name="filesystem",
+    #     label="File & Folder Access (Local Filesystem)",
+    #     description="Gives the chatbot secure access to read and write files in a specific folder on your computer.",
+    #     auth_type=MCPAuthType.PUBLIC,
+    #     category="System",
+    #     command=["npx", "-y", "@modelcontextprotocol/server-filesystem"],
+    #     icon="FolderOpen",
+    # ),
 
     # ── 2. API KEY SERVERS ──────────────────────────────────────────────
     "github": McpCatalogItem(
         name="github",
-        label="GitHub Developer",
-        description="Access repositories, create commits, manage pull requests, and review code.",
+        label="GitHub Code Manager",
+        description="Connects to your GitHub account to let the chatbot manage repositories, create commits, review code, and manage pull requests.",
         auth_type=MCPAuthType.API_KEY,
         category="Development",
         icon="Github",
@@ -85,7 +85,7 @@ MCP_CATALOG: dict[str, McpCatalogItem] = {
                 label="GitHub Personal Access Token",
                 type="password",
                 placeholder="ghp_...",
-                help_text="Requires repo and read:user scopes.",
+                help_text="Requires a Personal Access Token with 'repo' and 'read:user' scopes.",
             )
         ],
     ),
@@ -125,28 +125,28 @@ MCP_CATALOG: dict[str, McpCatalogItem] = {
     #         )
     #     ],
     # ),
-    "slack": McpCatalogItem(
-        name="slack",
-        label="Slack Workspace",
-        description="Communicate with Slack. Read messages, list channels, and post directly to channels.",
-        auth_type=MCPAuthType.API_KEY,
-        category="Communication",
-        icon="MessageSquare",
-        command=["npx", "-y", "@modelcontextprotocol/server-slack"],
-        fields=[
-            McpField(
-                key="bot_token",
-                label="Slack Bot Token",
-                type="password",
-                placeholder="xoxb-...",
-                help_text="Requires channels:read, chat:write, and groups:read scopes.",
-            )
-        ],
-    ),
+    # "slack": McpCatalogItem(
+    #     name="slack",
+    #     label="Slack Messenger Integration",
+    #     description="Allows the chatbot to read messages, list chat channels, and post messages directly into your Slack workspace.",
+    #     auth_type=MCPAuthType.API_KEY,
+    #     category="Communication",
+    #     icon="MessageSquare",
+    #     command=["npx", "-y", "@modelcontextprotocol/server-slack"],
+    #     fields=[
+    #         McpField(
+    #             key="bot_token",
+    #             label="Slack Bot Token",
+    #             type="password",
+    #             placeholder="xoxb-...",
+    #             help_text="Requires a token with 'channels:read', 'chat:write', and 'groups:read' scopes.",
+    #         )
+    #     ],
+    # ),
     "web_search": McpCatalogItem(
         name="web_search",
-        label="Brave Web Search",
-        description="Search the live web to fetch real-time search results, pages, and answers.",
+        label="Internet Search Engine (Brave Web Search)",
+        description="Allows the chatbot to search the live internet for real-time information, weather, current events, and online answers. Required to fetch the latest data.",
         auth_type=MCPAuthType.API_KEY,
         category="Utility",
         icon="Search",
@@ -157,7 +157,7 @@ MCP_CATALOG: dict[str, McpCatalogItem] = {
                 label="Brave Search API Key",
                 type="password",
                 placeholder="BS...",
-                help_text="Get a free key at api.search.brave.com.",
+                help_text="Get a free or paid API key at api.search.brave.com.",
             )
         ],
     ),

@@ -12,12 +12,11 @@ from auth.session import get_verified_session
 from db.chat_history import ensure_conversation, save_message, _verify_ownership
 from guards.input import guard_input
 from agents import graph
-from core.schemas import ApiSuccess, SSEEvent, SSEEventType, SessionStatus
+from core.schemas import ApiSuccess, SSEEvent, SSEEventType, SessionStatus, ArqJobName, RedisKeys
 from state import create_session, update_session_status
 
 
 router = APIRouter(prefix="/agent", tags=["agent"])
-
 
 class InvokeRequest(BaseModel):
     conversation_id: str | None = None  # None = new conversation
@@ -59,7 +58,7 @@ async def invoke(body: InvokeRequest, request: Request, user: str = Depends(get_
 
     # Enqueue ARQ job using the cached pool from app startup
     await request.app.state.arq_pool.enqueue_job(
-        "run_agent_task",
+        ArqJobName.RUN_AGENT_TASK,
         turn_id=turn_id,
         conversation_id=conversation_id,
         user_id=user,
@@ -94,7 +93,7 @@ async def approve(
 
     # Idempotency: prevent double-approve from racing
     redis = request.app.state.redis
-    lock_key = f"lock:approve:{turn_id}"
+    lock_key = RedisKeys.lock_approve(turn_id)
     acquired = await redis.set(lock_key, "1", ex=30, nx=True)
     if not acquired:
         raise HTTPException(409, "Already approved or rejected")
@@ -108,7 +107,7 @@ async def approve(
     # The original task already finished and closed SSE — we need a fresh
     # worker run to publish the resumed response.
     await request.app.state.arq_pool.enqueue_job(
-        "resume_agent_task",
+        ArqJobName.RESUME_AGENT_TASK,
         turn_id=turn_id,
         conversation_id=session["conversation_id"],
         user_id=user,
@@ -131,13 +130,13 @@ async def reject(
 
     # Idempotency: prevent double-reject from racing
     redis = request.app.state.redis
-    lock_key = f"lock:approve:{turn_id}"
+    lock_key = RedisKeys.lock_approve(turn_id)
     acquired = await redis.set(lock_key, "1", ex=30, nx=True)
     if not acquired:
         raise HTTPException(409, "Already approved or rejected")
 
     await update_session_status(redis, turn_id, SessionStatus.REJECTED)
-    await SSEEvent(SSEEventType.REJECTED, {}).publish(redis, f"sse:{turn_id}")
+    await SSEEvent(SSEEventType.REJECTED, {}).publish(redis, RedisKeys.sse_channel(turn_id))
     return ApiSuccess(data=StatusResponse(status=SessionStatus.REJECTED))
 
 
@@ -154,7 +153,7 @@ async def get_state(
     worker checkpoint writes when the graph is mid-stream.
     """
     redis = request.app.state.redis
-    lock_key = f"lock:state:{turn_id}"
+    lock_key = RedisKeys.lock_state(turn_id)
 
     # Acquire read lock (5s TTL — get_state should be fast)
     acquired = await redis.set(lock_key, "1", ex=5, nx=True)
@@ -173,3 +172,23 @@ async def get_state(
         )
     finally:
         await redis.delete(lock_key)
+
+
+@router.post("/{turn_id}/cancel", response_model=ApiSuccess[StatusResponse])
+async def cancel(
+    turn_id: str,
+    request: Request,
+    user: str = Depends(get_current_user_dep),
+    session: dict = Depends(get_verified_session),
+):
+    """Cancel a running agent task turn by setting f'cancel:{turn_id}' in Redis."""
+    # Verify user owns the conversation
+    if not await _verify_ownership(session["conversation_id"], user):
+        raise HTTPException(403, "Forbidden")
+
+    redis = request.app.state.redis
+    # Write cancellation signal into Redis so the background worker halts immediately
+    await redis.set(RedisKeys.cancel(turn_id), "1", ex=60)
+    await update_session_status(redis, turn_id, SessionStatus.CANCELLED)
+
+    return ApiSuccess(data=StatusResponse(status=SessionStatus.CANCELLED))
