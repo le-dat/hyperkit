@@ -1,4 +1,3 @@
-# ai-server/routers/__init__.py
 from fastapi import APIRouter
 from routers import system, agent, sse, history, mcp
 

@@ -1,12 +1,12 @@
 """Redis session management utilities."""
 
 from typing import Any
-from core.schemas import SessionStatus
+from core.schemas import SessionStatus, RedisKeys
 
 
 def _session_key(turn_id: str) -> str:
     """Generate the Redis key for a given turn_id."""
-    return f"session:{turn_id}"
+    return RedisKeys.session(turn_id)
 
 
 async def create_session(

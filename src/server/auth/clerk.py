@@ -72,6 +72,7 @@ async def get_current_user(request: Request) -> str:
             algorithms=["RS256"],
             audience=settings.clerk_audience or None,
             issuer=issuer,
+            leeway=60,
         )
         sub = payload.get("sub")
         if not sub or not isinstance(sub, str) or not sub.strip():

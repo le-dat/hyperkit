@@ -8,7 +8,7 @@ interface ModelReasoningProcessProps {
 }
 
 function useModelReasoningState() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const toggle = () => setIsOpen((prev) => !prev);
   return { isOpen, toggle };
 }

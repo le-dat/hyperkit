@@ -1,5 +1,5 @@
 import { Textarea } from "@/components/ui/input";
-import { ArrowUp, Box } from "lucide-react";
+import { ArrowUp, Box, Square } from "lucide-react";
 import { useLayoutEffect, useMemo, useRef, memo, useCallback } from "react";
 
 interface ChatInputProps {
@@ -8,6 +8,7 @@ interface ChatInputProps {
   onSubmit: () => void;
   isLoading: boolean;
   onOpenMCP?: () => void;
+  onAbort?: () => void;
 }
 
 function ChatInputComponent({
@@ -16,6 +17,7 @@ function ChatInputComponent({
   onSubmit,
   isLoading,
   onOpenMCP,
+  onAbort,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -84,13 +86,24 @@ function ChatInputComponent({
               </button>
             )}
 
-            <button
-              onClick={onSubmit}
-              disabled={!hasValue || isLoading}
-              className={buttonClassName}
-            >
-              <ArrowUp className="w-5 h-5" />
-            </button>
+            {isLoading && onAbort ? (
+              <button
+                type="button"
+                onClick={onAbort}
+                className="p-2 rounded-xl bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/50 hover:scale-105 active:scale-95 transition-all duration-200"
+                title="Stop generating"
+              >
+                <Square className="w-5 h-5 fill-white" />
+              </button>
+            ) : (
+              <button
+                onClick={onSubmit}
+                disabled={!hasValue || isLoading}
+                className={buttonClassName}
+              >
+                <ArrowUp className="w-5 h-5" />
+              </button>
+            )}
           </div>
         </div>
       </div>

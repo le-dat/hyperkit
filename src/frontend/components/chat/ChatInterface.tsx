@@ -60,7 +60,7 @@ export function ChatInterface({ conversationId: initialConversationId }: ChatInt
     justCreatedConversationRef,
   });
 
-  const { handleSubmit, handleNewChat, handleSelectChat, retryMessage } = useChatActions({
+  const { handleSubmit, handleNewChat, handleSelectChat, retryMessage, handleAbort } = useChatActions({
     currentConversationId,
     setCurrentConversationId,
     input,
@@ -212,6 +212,7 @@ export function ChatInterface({ conversationId: initialConversationId }: ChatInt
             onSubmit={handleSubmit}
             isLoading={isLoading}
             onOpenMCP={handleOpenMCP}
+            onAbort={handleAbort}
           />
         </div>
       </div>

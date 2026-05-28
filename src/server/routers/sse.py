@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
 from auth.session import get_verified_session
-from core.schemas import SSEEvent, SSEEventType, _STREAM_CLOSING_EVENTS
+from core.schemas import SSEEvent, SSEEventType, _STREAM_CLOSING_EVENTS, RedisKeys
 
 
 router = APIRouter(prefix="/sse", tags=["sse"])
@@ -24,7 +24,7 @@ async def stream(
         pubsub = redis.pubsub()
         loop = asyncio.get_running_loop()
         try:
-            await pubsub.subscribe(f"sse:{turn_id}")
+            await pubsub.subscribe(RedisKeys.sse_channel(turn_id))
             deadline = loop.time() + _SSE_TIMEOUT_SECONDS
 
             async for msg in pubsub.listen():
@@ -45,7 +45,14 @@ async def stream(
             return
         finally:
             with anyio.CancelScope(shield=True):
-                await pubsub.unsubscribe(f"sse:{turn_id}")
+                await pubsub.unsubscribe(RedisKeys.sse_channel(turn_id))
                 await pubsub.aclose()
 
-    return EventSourceResponse(generate())
+    return EventSourceResponse(
+        generate(),
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )

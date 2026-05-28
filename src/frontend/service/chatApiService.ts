@@ -87,6 +87,14 @@ class ChatService extends BaseService {
       { title }
     );
   }
+
+  async cancelAgent(
+    turnId: string
+  ): Promise<ApiSuccess<{ status: string }>> {
+    return this.post<ApiSuccess<{ status: string }>>(
+      `/agent/${turnId}/cancel`
+    );
+  }
 }
 
 export const chatApiService = new ChatService();

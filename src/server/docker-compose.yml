@@ -137,8 +137,6 @@ volumes:
 
 networks:
   chatbot_net:
-    external: true
-    name: chatbot_network
+    driver: bridge
   npm_network:
-    external: true
-    name: npm_network
+    driver: bridge

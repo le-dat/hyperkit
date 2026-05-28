@@ -1,4 +1,3 @@
-# ai-server/core/schemas.py
 from typing import Any, Generic, TypeVar, Optional
 from dataclasses import dataclass
 import json
@@ -7,8 +6,10 @@ from pydantic import BaseModel
 T = TypeVar("T")
 
 
+from enum import Enum
+
 # ── SSE Event Type Constants ───────────────────────────────────────────────
-class SSEEventType:
+class SSEEventType(str, Enum):
     """Canonical SSE event type strings. Use these instead of magic strings."""
 
     # Terminal events — these close the SSE stream
@@ -32,8 +33,16 @@ class SSEEventType:
     WARNING = "warning"
 
 
+# ── ARQ Job Name Constants ───────────────────────────────────────────────
+class ArqJobName(str, Enum):
+    """Canonical ARQ job names enqueued using arq."""
+
+    RUN_AGENT_TASK = "run_agent_task"
+    RESUME_AGENT_TASK = "resume_agent_task"
+
+
 # ── Session Status Constants ───────────────────────────────────────────────
-class SessionStatus:
+class SessionStatus(str, Enum):
     """Canonical session status strings for Redis session tracking."""
 
     QUEUED = "queued"
@@ -45,6 +54,47 @@ class SessionStatus:
     CANCELLED = "cancelled"
     COMPLETE = "complete"
     FAILED = "failed"
+
+
+# ── Redis Key Schema ───────────────────────────────────────────────────────
+class RedisKeys:
+    """Centralized schema and generators for Redis keys to prevent conflicts and ensure namespace styling."""
+
+    @staticmethod
+    def session(turn_id: str) -> str:
+        return f"session:{turn_id}"
+
+    @staticmethod
+    def entities(conversation_id: str) -> str:
+        return f"session:{conversation_id}:entities"
+
+    @staticmethod
+    def sse_channel(turn_id: str) -> str:
+        return f"sse:{turn_id}"
+
+    @staticmethod
+    def cancel(turn_id: str) -> str:
+        return f"cancel:{turn_id}"
+
+    @staticmethod
+    def lock_stream(conversation_id: str) -> str:
+        return f"lock:stream:{conversation_id}"
+
+    @staticmethod
+    def lock_approve(turn_id: str) -> str:
+        return f"lock:approve:{turn_id}"
+
+    @staticmethod
+    def lock_state(turn_id: str) -> str:
+        return f"lock:state:{turn_id}"
+
+    @staticmethod
+    def rate_limit(key: str) -> str:
+        return f"ratelimit:{key}"
+
+    @staticmethod
+    def rate_limit_mcp_toggle(user_id: str) -> str:
+        return f"mcp-toggle:{user_id}"
 
 
 _STREAM_CLOSING_EVENTS = frozenset({
@@ -66,11 +116,22 @@ class ApiErrorDetails(BaseModel):
     message: str
     status: Optional[int] = None
     code: Optional[str] = None
+    request_id: Optional[str] = None
 
 
 class ApiError(BaseModel):
     success: bool = False
     error: ApiErrorDetails
+
+    @classmethod
+    def create(
+        cls,
+        message: str,
+        status: Optional[int] = None,
+        code: Optional[str] = None,
+        request_id: Optional[str] = None,
+    ) -> "ApiError":
+        return cls(error=ApiErrorDetails(message=message, status=status, code=code, request_id=request_id))
 
 
 class PaginationDetails(BaseModel):

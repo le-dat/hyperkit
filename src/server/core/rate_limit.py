@@ -7,6 +7,8 @@ from typing import Callable
 from fastapi import Request, HTTPException
 from starlette.responses import JSONResponse
 
+from core.schemas import RedisKeys
+
 # sliding window: allow N requests per window_seconds per key
 
 
@@ -23,7 +25,7 @@ async def check_rate_limit(
     """
     now = time.time()
     window_start = now - window_seconds
-    redis_key = f"ratelimit:{key}"
+    redis_key = RedisKeys.rate_limit(key)
 
     # Remove old entries outside the window atomically
     await redis_client.zremrangebyscore(redis_key, 0, window_start)

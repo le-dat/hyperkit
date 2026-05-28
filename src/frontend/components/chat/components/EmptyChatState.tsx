@@ -33,13 +33,7 @@ export function EmptyChatState({ onSuggestionClick }: EmptyChatStateProps) {
       </div>
 
       <div className="relative z-10 space-y-6 md:space-y-8 animate-fade-in max-w-4xl">
-        {/* Terminal-style status indicator */}
-        <div className="inline-flex items-center gap-3 font-mono text-xs md:text-sm text-hyper-400 mb-2 glass px-4 py-2 rounded-full border border-white/10">
-          <span className="animate-pulse text-hyper-accent">●</span>
-          <span>SYSTEM READY</span>
-        </div>
-
-        {/* Main heading with gradient */}
+      {/* Main heading with gradient */}
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold font-mono leading-tight">
           <span className="text-white">HYPERKIT</span>{" "}
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-hyper-accent to-orange-500 animate-gradient">
