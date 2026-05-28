@@ -1,6 +1,13 @@
 import React, { useState } from "react";
-import { Loader2, CheckCircle2, ChevronDown, ChevronRight, Search, FileText, Globe, ExternalLink } from "lucide-react";
+import { Loader2, CheckCircle2, ChevronDown, ChevronRight, Search, FileText } from "lucide-react";
 import { ThinkingStep } from "@/types";
+
+interface SourceItem {
+  url?: string;
+  source?: string;
+  title?: string;
+  name?: string;
+}
 
 interface AgentThinkingProcessProps {
   steps?: ThinkingStep[];
@@ -30,14 +37,14 @@ export function AgentThinkingProcess({ steps }: AgentThinkingProcessProps) {
     }
   };
 
-  const parseSources = (output: any): Array<{ title: string; url: string; domain: string }> => {
+  const parseSources = (output: unknown): Array<{ title: string; url: string; domain: string }> => {
     if (!output) return [];
 
     if (typeof output === "string") {
       try {
         const parsed = jsonSafeParse(output);
         if (Array.isArray(parsed)) {
-          return parsed.map((item: any) => {
+          return (parsed as SourceItem[]).map((item: SourceItem) => {
             const url = item.url || item.source || "";
             const domain = extractDomain(url);
             return {
@@ -67,7 +74,7 @@ export function AgentThinkingProcess({ steps }: AgentThinkingProcessProps) {
         });
       }
     } else if (Array.isArray(output)) {
-      return output.map((item: any) => {
+      return (output as SourceItem[]).map((item: SourceItem) => {
         const url = item.url || item.source || "";
         const domain = extractDomain(url);
         return {
@@ -120,7 +127,7 @@ export function AgentThinkingProcess({ steps }: AgentThinkingProcessProps) {
         {isSearch && queryStr && (
           <div className="flex items-center gap-2 text-hyper-400 text-[10px]">
             <span>🔍</span>
-            <span className="italic truncate font-medium text-hyper-300">"{queryStr}"</span>
+            <span className="italic truncate font-medium text-hyper-300">&quot;{queryStr}&quot;</span>
           </div>
         )}
 
