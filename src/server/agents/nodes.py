@@ -46,16 +46,22 @@ async def node_process(state: AgentState) -> dict:
         if all_tools:
             llm = llm.bind_tools(all_tools)
 
-        system_msg = SystemMessage(
-            content=(
-                "Prior to writing your final response, you MUST output your step-by-step thinking process, search strategy, and planning inside <thought>...</thought> tags at the very beginning of your output. Once done, close the tag and write your final user-facing response."
-            )
-        )
-        # Preserve existing SystemMessage (e.g., memory context) if already present
-        if state["messages"] and isinstance(state["messages"][0], SystemMessage):
-            messages_to_send = state["messages"]
-        else:
-            messages_to_send = [system_msg] + state["messages"]
+        # Build a single unified SystemMessage containing both the thinking instructions and memory context
+        system_contents = [
+            "Prior to writing your final response, you MUST output your step-by-step thinking process, search strategy, and planning inside <thought>...</thought> tags at the very beginning of your output. Once done, close the tag and write your final user-facing response."
+        ]
+
+        other_messages = []
+        if state["messages"]:
+            for msg in state["messages"]:
+                if isinstance(msg, SystemMessage):
+                    if msg.content and msg.content not in system_contents:
+                        system_contents.append(msg.content)
+                else:
+                    other_messages.append(msg)
+
+        unified_system_msg = SystemMessage(content="\n\n".join(system_contents))
+        messages_to_send = [unified_system_msg] + other_messages
 
         full_chunk = None
         async for chunk in llm.astream(messages_to_send):
