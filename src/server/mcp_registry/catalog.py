@@ -60,15 +60,15 @@ MCP_CATALOG: dict[str, McpCatalogItem] = {
         command=["npx", "-y", "@modelcontextprotocol/server-puppeteer"],
         icon="MonitorPlay",
     ),
-    "filesystem": McpCatalogItem(
-        name="filesystem",
-        label="File & Folder Access (Local Filesystem)",
-        description="Gives the chatbot secure access to read and write files in a specific folder on your computer.",
-        auth_type=MCPAuthType.PUBLIC,
-        category="System",
-        command=["npx", "-y", "@modelcontextprotocol/server-filesystem"],
-        icon="FolderOpen",
-    ),
+    # "filesystem": McpCatalogItem(
+    #     name="filesystem",
+    #     label="File & Folder Access (Local Filesystem)",
+    #     description="Gives the chatbot secure access to read and write files in a specific folder on your computer.",
+    #     auth_type=MCPAuthType.PUBLIC,
+    #     category="System",
+    #     command=["npx", "-y", "@modelcontextprotocol/server-filesystem"],
+    #     icon="FolderOpen",
+    # ),
 
     # ── 2. API KEY SERVERS ──────────────────────────────────────────────
     "github": McpCatalogItem(
@@ -125,24 +125,24 @@ MCP_CATALOG: dict[str, McpCatalogItem] = {
     #         )
     #     ],
     # ),
-    "slack": McpCatalogItem(
-        name="slack",
-        label="Slack Messenger Integration",
-        description="Allows the chatbot to read messages, list chat channels, and post messages directly into your Slack workspace.",
-        auth_type=MCPAuthType.API_KEY,
-        category="Communication",
-        icon="MessageSquare",
-        command=["npx", "-y", "@modelcontextprotocol/server-slack"],
-        fields=[
-            McpField(
-                key="bot_token",
-                label="Slack Bot Token",
-                type="password",
-                placeholder="xoxb-...",
-                help_text="Requires a token with 'channels:read', 'chat:write', and 'groups:read' scopes.",
-            )
-        ],
-    ),
+    # "slack": McpCatalogItem(
+    #     name="slack",
+    #     label="Slack Messenger Integration",
+    #     description="Allows the chatbot to read messages, list chat channels, and post messages directly into your Slack workspace.",
+    #     auth_type=MCPAuthType.API_KEY,
+    #     category="Communication",
+    #     icon="MessageSquare",
+    #     command=["npx", "-y", "@modelcontextprotocol/server-slack"],
+    #     fields=[
+    #         McpField(
+    #             key="bot_token",
+    #             label="Slack Bot Token",
+    #             type="password",
+    #             placeholder="xoxb-...",
+    #             help_text="Requires a token with 'channels:read', 'chat:write', and 'groups:read' scopes.",
+    #         )
+    #     ],
+    # ),
     "web_search": McpCatalogItem(
         name="web_search",
         label="Internet Search Engine (Brave Web Search)",
