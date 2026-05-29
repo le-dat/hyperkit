@@ -3,8 +3,8 @@
 > **An Enterprise-Grade, Full-Stack AI Chatbot Platform**  
 > Engineered with a high-performance **Hybrid (Vercel + VPS)** architecture. Featuring real-time **SSE (Server-Sent Events) streaming** of thinking & response tokens, **multi-tenant isolation**, a robust **LangGraph-based agentic workflow**, **ARQ asynchronous background workers**, and a dynamic **multi-tenant MCP (Model Context Protocol) tool registry** with encrypted-at-rest configurations.
 
-<https://github.com/user-attachments/assets/49460747-ee69-4fa8-adae-87e97a425fd4>
 ---
+<https://github.com/user-attachments/assets/49460747-ee69-4fa8-adae-87e97a425fd4>
 
 ## 🏗️ Architecture & Technical Design (Argitech)
 
