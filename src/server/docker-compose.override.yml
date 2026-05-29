@@ -29,3 +29,5 @@ services:
     environment:
       - ENV=development
     command: ["python", "-m", "arq", "workers.WorkerSettings"]
+    healthcheck:
+      disable: true
