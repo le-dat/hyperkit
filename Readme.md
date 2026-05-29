@@ -129,8 +129,7 @@ hyperkit-ai/
 
 ---
 
-### 🐳 Method A: Run Entire Stack via Docker (Recommended)
-This method is the fastest, cleanest, and most production-like approach. It boots PostgreSQL, Redis, the FastAPI Backend, and the ARQ Worker altogether in development mode with hot-reload enabled via Docker volumes.
+### 🐳 Run Entire Stack via Docker 
 
 #### Step 1: Set Up Configurations
 1.  **Backend Env**: Navigate to `src/server`, copy `.env.example` to `.env`, and populate your Clerk credentials, database names, and LLM API keys:
