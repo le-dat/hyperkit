@@ -139,7 +139,7 @@ export function ChatSidebar({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25 }}
-            className="mx-2 mt-2 p-4 rounded-xl border flex flex-col items-center gap-3 text-center"
+            className="mx-2 mt-2 p-4 rounded-xl border border-white/10 flex flex-col items-center gap-3 text-center"
           >
             <div className="p-2 rounded-full">
               <WifiOff className="w-5 h-5" />
@@ -151,7 +151,7 @@ export function ChatSidebar({
             {onRetry && (
               <button
                 onClick={onRetry}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold text-white border transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold text-white border border-white/10 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
               >
                 <RefreshCw className="w-3 h-3" />
                 Try Again
