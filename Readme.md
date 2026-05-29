@@ -118,9 +118,9 @@ hyperkit-ai/
 
 ---
 
-## 🚀 How To Run (Cách Chạy & Vận Hành)
+## 🚀 How To Run 
 
-### 📋 Prerequisites (Yêu cầu hệ thống)
+### 📋 Prerequisites
 *   **Operating System**: Linux (highly recommended) or macOS
 *   **Docker & Compose**: Docker Engine 24.0+ & Compose v2.20+
 *   **Node.js**: Node 20+ with `pnpm` installed (`npm i -g pnpm`)
@@ -181,90 +181,3 @@ pnpm run dev
 Open `http://localhost:3000` in your browser.
 
 ---
-
-### 💻 Method B: Run Locally (Outside Containers for Quick Debugging)
-If you prefer running the Python virtual environment and Next.js locally on your host machine while using Docker solely for Postgres & Redis databases:
-
-#### Step 1: Spin Up PostgreSQL and Redis
-Start only Postgres and Redis via Docker Compose:
-```bash
-cd src/server
-docker compose up -d postgres redis
-```
-*Note: This binds PostgreSQL to `127.0.0.1:5433` and Redis to `127.0.0.1:6379` on your host machine.*
-
-#### Step 2: Configure Local Backend VirtualEnv & Run FastAPI
-In the `src/server` directory, create and activate a Python virtual environment, install requirements, and run the development server:
-```bash
-cd src/server
-
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run FastAPI Server
-python -m uvicorn main:app --reload --port 8000
-```
-FastAPI Swagger documentation will be accessible at `http://localhost:8000/docs`.
-
-#### Step 3: Run the ARQ Worker (In a separate terminal)
-In another terminal, activate the same virtual environment and start the ARQ worker to process LangGraph tasks:
-```bash
-cd src/server
-source .venv/bin/activate
-python -m arq workers.WorkerSettings
-```
-
-#### Step 4: Run the Next.js Frontend
-In another terminal, start the Next.js dev server:
-```bash
-cd src/frontend
-pnpm install
-pnpm run dev
-```
-
----
-
-## 🔑 Environment Variables Reference
-
-### Backend Settings (`src/server/.env`)
-
-| Variable | Required | Description | Example |
-| :--- | :--- | :--- | :--- |
-| `ENV` | Yes | App runtime context (`development` / `production`) | `development` |
-| `POSTGRES_USER` | Yes | Postgres Admin Username | `chatbot` |
-| `POSTGRES_PASSWORD`| Yes | Postgres Admin Password | `chatbot_pass` |
-| `CHAT_DATABASE_URL`| Yes | SQL Connection string (FastAPI + SQLAlchemy) | `postgresql+asyncpg://chatbot:pass@127.0.0.1:5433/chat_db` |
-| `REDIS_URL` | Yes | Redis Endpoint | `redis://localhost:6379` |
-| `CLERK_FRONTEND_API`| Yes | Clerk app backend endpoint | `your-app.clerk.accounts.dev` |
-| `CLERK_SECRET_KEY` | Yes | Clerk private key for authorization checks | `sk_test_...` |
-| `CLERK_ISSUER_URL` | Yes | Full Clerk issuer URL | `https://your-app.clerk.accounts.dev` |
-| `FRONTEND_URL` | Yes | CORS allowed origin address | `http://localhost:3000` |
-| `LLM_PROVIDER` | Yes | Model core engine selector (`openai` / `anthropic`) | `anthropic` |
-| `ANTHROPIC_API_KEY`| No | Anthropic SDK authentication | `sk-ant-...` |
-| `OPENAI_API_KEY` | No | OpenAI SDK authentication | `sk-proj-...` |
-| `MCP_ENCRYPTION_KEY`| Yes | Base64 AES-256 crypt key (raw must be 32 bytes) | `YW50aWdyYXZpdHktZGV2LWZhbGxiYWNrLTMyYnl0ZXM=` |
-
-### Frontend Settings (`src/frontend/.env`)
-
-| Variable | Required | Description | Example |
-| :--- | :--- | :--- | :--- |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Yes | Clerk Client-side public key | `pk_test_...` |
-| `CLERK_SECRET_KEY` | Yes | Clerk Server-side secret key | `sk_test_...` |
-| `CHAT_BASE_URL` | Yes | Internal URL of the FastAPI agent server | `http://localhost:8000` |
-| `MCP_BASE_URL` | Yes | Internal URL of the FastAPI MCP endpoints | `http://localhost:8000` |
-
----
-
-## 🛠️ Troubleshooting & Diagnostic Checks
-
-| Symptom | Probable Cause | Action / Fix |
-| :--- | :--- | :--- |
-| `Database connection failed` / `ECONNREFUSED` | FastAPI is trying to connect to the wrong port | When running the backend **locally** (Method B), ensure `CHAT_DATABASE_URL` points to `127.0.0.1:5433` (as exposed by `docker-compose.override.yml`). If running **inside Docker Compose** (Method A), the container connects directly to `postgres:5432`. |
-| `MCP_ENCRYPTION_KEY` validation error | Key is not present or is not exactly 32-bytes when base64-decoded | Generate a valid 32-byte key in your terminal via `openssl rand -base64 32` and assign it to `MCP_ENCRYPTION_KEY` in `src/server/.env`. |
-| Clerk JWT token fails to verify | Audience / Issuer URL configuration mismatch | Verify that `CLERK_ISSUER_URL` matches your Clerk instance URL and `CLERK_AUDIENCE` matches your Clerk Frontend API URL (usually `https://<your-app>.clerk.accounts.dev`). |
-| Stream disconnects immediately | CORS policy blocking request | Check `FRONTEND_URL` in `src/server/.env`. Ensure there are no trailing slashes. Use `*` only for debugging in local environments. |
-| Worker not responding to messages | ARQ daemon is not running | Ensure `python -m arq workers.WorkerSettings` is running in your virtual environment (if running Method B) or check container logs with `make dev-log` (if running Method A). |
