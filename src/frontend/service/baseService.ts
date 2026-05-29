@@ -1,5 +1,4 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
-import { useMaintenanceStore } from "@/store/useMaintenanceStore";
 
 export abstract class BaseService {
   protected api: AxiosInstance;
