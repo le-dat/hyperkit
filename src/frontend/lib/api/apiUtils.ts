@@ -2,7 +2,7 @@
 import { ApiError } from "@/types/common/api-response";
 import { SOCIAL_LINKS } from "@/lib/constants";
 
-export const isProduction = (): boolean => process.env.NODE_ENV === "development";
+export const isProduction = (): boolean => process.env.NODE_ENV === "production";
 
 /**
  * Extracts a user-friendly error message from a backend ApiError or standard Axios error
