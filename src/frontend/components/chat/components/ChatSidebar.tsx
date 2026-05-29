@@ -1,6 +1,6 @@
 import { useConversationItem } from "@/hooks/chat/useConversationItem";
 import { ChatSession } from "@/types";
-import { FileText } from "lucide-react";
+import { FileText, RefreshCw, WifiOff } from "lucide-react";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ConversationItem } from "./ConversationItem";
@@ -81,6 +81,8 @@ interface ChatSidebarProps {
   currentChatId?: string | null;
   isLoading?: boolean;
   isUpdating?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
 export function ChatSidebar({
@@ -93,6 +95,8 @@ export function ChatSidebar({
   currentChatId,
   isLoading = false,
   isUpdating = false,
+  isError = false,
+  onRetry,
 }: ChatSidebarProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -129,6 +133,31 @@ export function ChatSidebar({
               </div>
             ))}
           </>
+        ) : isError ? (
+          // Error state
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="mx-2 mt-2 p-4 rounded-xl border flex flex-col items-center gap-3 text-center"
+          >
+            <div className="p-2 rounded-full">
+              <WifiOff className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-mono font-semibold uppercase tracking-wide">Load failed</p>
+              <p className="text-xs text-hyper-500 mt-0.5">Couldn&apos;t fetch conversations</p>
+            </div>
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-semibold text-white border transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Try Again
+              </button>
+            )}
+          </motion.div>
         ) : history.length === 0 ? (
           <div className="px-3 py-8 text-center text-hyper-500 text-sm">No conversations yet</div>
         ) : (

@@ -6,6 +6,8 @@ interface MobileSidebarOverlayProps {
   history: ChatSession[];
   currentChatId: string | null;
   isLoading: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
   onNewChat: () => void;
   onSelectChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
@@ -19,6 +21,8 @@ export function MobileSidebarOverlay({
   history,
   currentChatId,
   isLoading,
+  isError,
+  onRetry,
   onNewChat,
   onSelectChat,
   onDeleteChat,
@@ -50,6 +54,8 @@ export function MobileSidebarOverlay({
           onEditChat={onEditChat}
           currentChatId={currentChatId}
           isLoading={isLoading}
+          isError={isError}
+          onRetry={onRetry}
           isUpdating={isUpdating}
         />
       </div>

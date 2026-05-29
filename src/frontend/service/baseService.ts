@@ -38,9 +38,6 @@ export abstract class BaseService {
               break;
             case 500:
               console.log("Server error");
-              if (process.env.NODE_ENV === "production") {
-                useMaintenanceStore.getState().setMaintenance(true);
-              }
               break;
             default:
               console.log("API error:", error?.response?.data);

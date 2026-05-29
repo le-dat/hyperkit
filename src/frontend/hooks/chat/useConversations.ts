@@ -14,6 +14,7 @@ export function useConversations() {
   const {
     data: conversationsData,
     isLoading: isHistoryLoading,
+    isError: isHistoryError,
     refetch: refetchConversations,
     error: conversationsError,
   } = useQuery({
@@ -76,6 +77,7 @@ export function useConversations() {
   return {
     history,
     isHistoryLoading,
+    isHistoryError,
     refetchConversations,
     deleteConversation,
     isDeleting,

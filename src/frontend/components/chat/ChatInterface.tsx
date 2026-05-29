@@ -38,6 +38,7 @@ export function ChatInterface({ conversationId: initialConversationId }: ChatInt
   const {
     history,
     isHistoryLoading,
+    isHistoryError,
     refetchConversations,
     deleteConversation,
     isDeleting,
@@ -171,6 +172,8 @@ export function ChatInterface({ conversationId: initialConversationId }: ChatInt
           onEditChat={handleEditChat}
           currentChatId={currentConversationId}
           isLoading={isHistoryLoading}
+          isError={isHistoryError}
+          onRetry={refetchConversations}
           isUpdating={isUpdating}
         />
       </div>
@@ -181,6 +184,8 @@ export function ChatInterface({ conversationId: initialConversationId }: ChatInt
         history={history}
         currentChatId={currentConversationId}
         isLoading={isHistoryLoading}
+        isError={isHistoryError}
+        onRetry={refetchConversations}
         onNewChat={handleNewChat}
         onSelectChat={handleSelectChat}
         onDeleteChat={handleDeleteChatRequest}

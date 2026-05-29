@@ -58,7 +58,8 @@ export const API_V1_PREFIX = "/v1";
 export const TOTAL_ONBOARDING_STEPS = 2;
 
 export const SOCIAL_LINKS = {
-  TWITTER: "https://twitter.com/hyperkit",
-  TELEGRAM: "https://t.me/hyperkit",
-  EMAIL: "mailto:contact@hyperkit.com",
+  TWITTER: "https://x.com/lvthanh3387",
+  TELEGRAM: "https://t.me/leox113",
+  EMAIL: "mailto:contact@lqdat87@gmail.com",
+  GITHUB: "https://github.com/le-dat/hyperkit",
 } as const;
